@@ -1,0 +1,73 @@
+---
+globs: models/*.py,repository/*.py
+description: 모델 및 Repository 패턴 가이드
+---
+
+# 🧑 모델 및 Repository 패턴 가이드
+
+## 모델 구조 (`models/`)
+
+### User 모델 예시 (`models/user_model.py`)
+
+```python
+import uuid
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import String, TIMESTAMP, func
+from core.database import Base
+
+class User(Base):
+    __tablename__ = "users"
+
+    uuid: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    telegram_id: Mapped[int] = mapped_column(unique=True, nullable=False)
+    username: Mapped[str] = mapped_column(String, nullable=True)
+    first_name: Mapped[str] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(TIMESTAMP, server_default=func.now())
+```
+
+## Repository 패턴 (`repository/`)
+
+### Repository 기본 구조
+
+```python
+from models.conversation_model import Conversation
+
+class ConversationRepository:
+    async def create(self, session, user_uuid, question, answer, in_tokens, out_tokens):
+        conv = Conversation(
+            user_uuid=user_uuid,
+            question=question,
+            answer=answer,
+            token_usage_input=in_tokens,
+            token_usage_output=out_tokens
+        )
+        session.add(conv)
+        await session.commit()
+        await session.refresh(conv)
+        return conv
+```
+
+## 모델 및 Repository 원칙
+
+### 모델 설계 원칙
+
+- **SQLAlchemy 2.0**: `Mapped` 타입 힌트 사용
+- **UUID**: Primary key로 UUID 사용
+- **타임스탬프**: `server_default=func.now()` 사용
+- **단일 책임**: 각 모델은 하나의 엔티티만 담당
+
+### Repository 패턴 원칙
+
+- **단일 모델**: Repository는 단일 데이터베이스 모델에만 적용
+- **비즈니스 로직 분리**: Repository는 데이터 접근만 담당
+- **Async 패턴**: 모든 메서드는 async/await 사용
+- **Session 관리**: 외부에서 session을 주입받아 사용
+
+### Repository 메서드 명명 규칙
+
+- `create()`: 새 엔티티 생성
+- `get_by_id()`: ID로 조회
+- `get_or_create()`: 조회 후 없으면 생성
+- `update()`: 엔티티 업데이트
+- `delete()`: 엔티티 삭제
+- `list_by_*()`: 조건별 목록 조회

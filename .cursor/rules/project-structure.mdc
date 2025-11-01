@@ -1,0 +1,50 @@
+---
+alwaysApply: true
+description: 프로젝트 구조 및 아키텍처 가이드
+---
+
+# 📘 프로젝트 구조 가이드
+
+## 프로젝트 구조
+
+```text
+📦 project_root/
+├─ main.py
+├─ config.json
+├─ core/
+│   ├─ config.py
+│   ├─ database.py
+│   ├─ logger.py
+│   ├─ middleware.py
+│   └─ exceptions.py
+├─ models/
+│   ├─ user_model.py
+│   ├─ conversation_model.py
+│   └─ usage_model.py
+├─ repository/
+│   ├─ user_repository.py
+│   ├─ conversation_repository.py
+│   └─ usage_repository.py
+├─ services/
+│   ├─ gemini_service.py
+│   ├─ conversation_service.py
+│   └─ telegram_service.py
+└─ api/
+    ├─ telegram_router.py
+    └─ qa_router.py
+```
+
+## 주요 원칙
+
+- **app/ 폴더 제거**: 모든 모듈을 루트 기준으로 이동
+- **구조 단순화**: 모듈 간 import 경로 간소화 (`from core.database import ...`)
+- **계층 분리**: models → repository → services → api 순서로 의존성 관리
+- **단일 책임**: 각 모듈은 하나의 명확한 역할을 담당
+
+## Import 경로 규칙
+
+- Core 모듈: `from core.database import ...`
+- Models: `from models.user_model import ...`
+- Repository: `from repository.user_repository import ...`
+- Services: `from services.gemini_service import ...`
+- API: `from api.telegram_router import ...`
