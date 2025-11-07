@@ -105,13 +105,44 @@ async def init_db():
         
         # 누락된 테이블만 생성
         for table in sorted_tables:
-            if table.name not in existing_tables:
-                # conn.run_sync expects a sync callable taking the sync connection as the first arg.
-                def _create(sync_conn, _table=table):
-                    _table.create(bind=sync_conn, checkfirst=True)
-
-                await conn.run_sync(_create)
-                print(f"테이블 생성됨: {table.name}")
-            else:
+            if table.name in existing_tables:
                 print(f"테이블이 이미 존재함: {table.name}")
+                continue
+
+            # FK 대상 테이블이 이미 존재하지만, 참조하는 컬럼이 없을 경우
+            # (예: 기존 users 테이블에 id 컬럼이 없음) 생성 시 데이터베이스 에러가 발생하므로
+            # 사전에 확인하여 명확한 로그를 남기고 해당 테이블 생성은 스킵합니다.
+            missing_refs = []
+            for fk in table.foreign_keys:
+                try:
+                    ref_table = fk.column.table.name
+                    ref_col = fk.column.name
+                except Exception:
+                    # 안전장치: FK 메타 정보를 가져오지 못하면 무시
+                    continue
+
+                if ref_table in existing_tables:
+                    # information_schema에서 컬럼 존재 여부 확인
+                    res = await conn.execute(
+                        text(
+                            "SELECT 1 FROM information_schema.columns WHERE table_name = :t AND column_name = :c"
+                        ),
+                        {"t": ref_table, "c": ref_col},
+                    )
+                    if res.fetchone() is None:
+                        missing_refs.append(f"{ref_table}.{ref_col}")
+
+            if missing_refs:
+                print(
+                    f"스킵: {table.name} - 참조되는 컬럼이 누락됨: {missing_refs}. 기존 테이블 스키마를 확인하세요."
+                )
+                # 다음 테이블로 진행 (사용자 개입 필요)
+                continue
+
+            # conn.run_sync expects a sync callable taking the sync connection as the first arg.
+            def _create(sync_conn, _table=table):
+                _table.create(bind=sync_conn, checkfirst=True)
+
+            await conn.run_sync(_create)
+            print(f"테이블 생성됨: {table.name}")
 
