@@ -1,11 +1,9 @@
 import os
-import sqlite3
-from contextlib import asynccontextmanager, contextmanager
-from typing import AsyncGenerator, Iterator
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import text
 from core.config import load_config
 
 
@@ -20,36 +18,28 @@ _async_session_maker = None
 
 
 def _get_database_url() -> str:
-    """데이터베이스 URL 생성"""
+    """데이터베이스 URL 생성 (PostgreSQL만 지원)"""
     config = load_config()
     db_config = config["database"]
-    driver = db_config.get("driver", "postgresql")
     
-    if driver == "sqlite":
-        db_path = db_config["path"]
-        # aiosqlite를 위한 URL 형식: sqlite+aiosqlite:///경로
-        return f"sqlite+aiosqlite:///{db_path}"
-    elif driver == "postgresql":
-        # PostgreSQL URL 형식: postgresql+asyncpg://user:password@host:port/database
-        user = db_config.get("user", "postgres")
-        password = db_config.get("password", "")
-        host = db_config.get("host", "localhost")
-        port = db_config.get("port", 5432)
-        database = db_config.get("database", "chatbot_db")
-        
-        # 환경변수에서 비밀번호 가져오기 (보안)
-        password = os.getenv("DATABASE_PASSWORD", password)
-        user = os.getenv("DATABASE_USER", user)
-        host = os.getenv("DATABASE_HOST", host)
-        port = int(os.getenv("DATABASE_PORT", port))
-        database = os.getenv("DATABASE_NAME", database)
-        
-        if password:
-            return f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}"
-        else:
-            return f"postgresql+asyncpg://{user}@{host}:{port}/{database}"
+    # PostgreSQL URL 형식: postgresql+asyncpg://user:password@host:port/database
+    user = db_config.get("user", "postgres")
+    password = db_config.get("password", "")
+    host = db_config.get("host", "localhost")
+    port = db_config.get("port", 5432)
+    database = db_config.get("database", "chatbot_db")
+    
+    # 환경변수에서 비밀번호 가져오기 (보안)
+    password = os.getenv("DATABASE_PASSWORD", password)
+    user = os.getenv("DATABASE_USER", user)
+    host = os.getenv("DATABASE_HOST", host)
+    port = int(os.getenv("DATABASE_PORT", port))
+    database = os.getenv("DATABASE_NAME", database)
+    
+    if password:
+        return f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}"
     else:
-        raise ValueError(f"Unsupported database driver: {driver}")
+        return f"postgresql+asyncpg://{user}@{host}:{port}/{database}"
 
 
 def get_engine():
@@ -59,8 +49,7 @@ def get_engine():
         database_url = _get_database_url()
         _engine = create_async_engine(
             database_url,
-            echo=False,
-            connect_args={"check_same_thread": False} if "sqlite" in database_url else {}
+            echo=False
         )
     return _engine
 
@@ -95,40 +84,27 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
 async def init_db():
     """데이터베이스 초기화 (테이블 생성)"""
     engine = get_engine()
-    config = load_config()
-    driver = config["database"].get("driver", "postgresql")
     
     async with engine.begin() as conn:
-        # SQLite 전용 설정
-        if driver == "sqlite":
-            await conn.execute(text("PRAGMA journal_mode=WAL;"))
-            await conn.execute(text("PRAGMA foreign_keys=ON;"))
+        # 존재하는 테이블 목록 조회
+        result = await conn.execute("""
+            SELECT tablename 
+            FROM pg_catalog.pg_tables 
+            WHERE schemaname = 'public'
+        """)
+        existing_tables = {row[0] for row in result}
         
-        # PostgreSQL은 외래키가 기본적으로 활성화되어 있음
-        # 모든 테이블 생성
-        await conn.run_sync(Base.metadata.create_all)
-
-
-# 하위 호환성을 위한 기존 함수 (deprecated)
-def _connect():
-    """기존 코드 호환성을 위한 함수 (deprecated)"""
-    config = load_config()
-    db_path = config["database"]["path"]
-    conn = sqlite3.connect(db_path, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL;")
-    conn.execute("PRAGMA foreign_keys=ON;")
-    return conn
-
-
-@contextmanager
-def get_connection() -> Iterator[sqlite3.Connection]:
-    """기존 코드 호환성을 위한 함수 (deprecated)"""
-    conn = _connect()
-    try:
-        yield conn
-    finally:
-        conn.close()
-
-
+        # 테이블을 생성 순서대로 정렬
+        sorted_tables = sorted(
+            Base.metadata.tables.values(),
+            key=lambda t: t.info.get("creation_order", 999)
+        )
+        
+        # 누락된 테이블만 생성
+        for table in sorted_tables:
+            if table.name not in existing_tables:
+                await conn.run_sync(lambda: table.create(engine))
+                print(f"테이블 생성됨: {table.name}")
+            else:
+                print(f"테이블이 이미 존재함: {table.name}")
 
