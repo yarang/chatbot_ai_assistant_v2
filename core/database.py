@@ -4,6 +4,7 @@ from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy import text
 from core.config import load_config
 
 
@@ -81,18 +82,22 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
+from sqlalchemy import text
+
 async def init_db():
     """데이터베이스 초기화 (테이블 생성)"""
     engine = get_engine()
     
     async with engine.begin() as conn:
         # 존재하는 테이블 목록 조회
-        result = await conn.execute("""
-            SELECT tablename 
-            FROM pg_catalog.pg_tables 
-            WHERE schemaname = 'public'
-        """)
-        existing_tables = {row[0] for row in result}
+        result = await conn.execute(
+            text("""
+                SELECT tablename 
+                FROM pg_catalog.pg_tables 
+                WHERE schemaname = 'public'
+            """)
+        )
+        existing_tables = {row[0] for row in result.fetchall()}
         
         # 테이블을 생성 순서대로 정렬
         sorted_tables = sorted(
