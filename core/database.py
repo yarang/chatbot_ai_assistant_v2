@@ -82,8 +82,6 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
-from sqlalchemy import text
-
 async def init_db():
     """데이터베이스 초기화 (테이블 생성)"""
     engine = get_engine()
@@ -108,7 +106,11 @@ async def init_db():
         # 누락된 테이블만 생성
         for table in sorted_tables:
             if table.name not in existing_tables:
-                await conn.run_sync(lambda: table.create(engine))
+                # conn.run_sync expects a sync callable taking the sync connection as the first arg.
+                def _create(sync_conn, _table=table):
+                    _table.create(bind=sync_conn, checkfirst=True)
+
+                await conn.run_sync(_create)
                 print(f"테이블 생성됨: {table.name}")
             else:
                 print(f"테이블이 이미 존재함: {table.name}")
