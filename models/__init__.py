@@ -11,11 +11,17 @@ from models.persona_model import Persona
 from core.database import Base
 
 # 테이블 생성 순서 지정
-Base.metadata.tables["users"].info["creation_order"] = 1
-Base.metadata.tables["personas"].info["creation_order"] = 2
-Base.metadata.tables["chat_rooms"].info["creation_order"] = 3
-Base.metadata.tables["conversations"].info["creation_order"] = 4
-Base.metadata.tables["usage_logs"].info["creation_order"] = 5
+# Base.metadata.tables에 실제 존재하는 테이블만 순서 지정
+table_orders = {
+    "users": 1,
+    "personas": 2,
+    "chat_rooms": 3,
+    "conversations": 4
+}
+
+for table_name, order in table_orders.items():
+    if table_name in Base.metadata.tables:
+        Base.metadata.tables[table_name].info["creation_order"] = order
 
 __all__ = [
     "User",
