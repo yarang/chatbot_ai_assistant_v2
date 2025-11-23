@@ -3,10 +3,10 @@
   "log_level": "INFO",
   "database": {
     "driver": "postgresql",
-    "host": "localhost",
+    "host": "oci-fcoinfup-arm2.fcoinfup.com",
     "port": 5432,
-    "user": "postgres",
-    "password": "",
+    "user": "chatbot",
+    "password": "Cb0t#2024$Xz",
     "database": "chatbot_db"
   },
   "gemini": {
@@ -18,5 +18,3 @@
     "webhook_secret": ""
   }
 }
-
-

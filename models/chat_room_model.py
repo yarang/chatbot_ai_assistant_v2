@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Optional, List
 from datetime import datetime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import String, Integer, ForeignKey, TIMESTAMP, func
+from sqlalchemy.dialects.postgresql import UUID
 
 from core.database import Base
 
@@ -33,20 +34,19 @@ class ChatRoom(Base):
     """
     __tablename__ = "chat_rooms"
 
-    id: Mapped[str] = mapped_column(
-        String,
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
         primary_key=True,
-        default=lambda: str(uuid.uuid4())
+        default=uuid.uuid4
     )
     telegram_chat_id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, index=True)
     name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     type: Mapped[str] = mapped_column(String, nullable=False)  # private, group, supergroup, channel
     username: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    persona_id: Mapped[Optional[str]] = mapped_column(
-        String,
+    persona_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
         ForeignKey("personas.id", ondelete="SET NULL"),
         nullable=True,
-        index=True
     )
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

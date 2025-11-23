@@ -1,4 +1,5 @@
-from typing import Optional
+import uuid
+from typing import Optional, Union
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -68,17 +69,20 @@ class UserRepository:
             await session.refresh(new_user)
             return new_user
 
-    async def get_user_by_id(self, session: AsyncSession, user_id: str) -> Optional[User]:
+    async def get_user_by_id(self, session: AsyncSession, user_id: Union[uuid.UUID, str]) -> Optional[User]:
         """
         ID로 사용자 조회
         
         Args:
             session: AsyncSession 인스턴스
-            user_id: 사용자 ID (UUID)
+            user_id: 사용자 ID (UUID 또는 UUID 문자열)
             
         Returns:
             User 인스턴스 또는 None
         """
+        # 문자열인 경우 UUID로 변환
+        if isinstance(user_id, str):
+            user_id = uuid.UUID(user_id)
         result = await session.get(User, user_id)
         return result
 
@@ -148,12 +152,12 @@ async def upsert_user(
         )
 
 
-async def get_user_by_id(user_id: str) -> Optional[User]:
+async def get_user_by_id(user_id: Union[uuid.UUID, str]) -> Optional[User]:
     """
     ID로 사용자 조회 (편의 함수)
     
     Args:
-        user_id: 사용자 ID (UUID)
+        user_id: 사용자 ID (UUID 또는 UUID 문자열)
         
     Returns:
         User 인스턴스 또는 None

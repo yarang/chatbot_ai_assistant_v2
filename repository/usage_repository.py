@@ -1,4 +1,5 @@
-from typing import List, Dict, Optional, Tuple
+import uuid
+from typing import List, Dict, Optional, Tuple, Union
 from datetime import datetime, date
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
@@ -19,7 +20,7 @@ class UsageRepository:
     async def get_user_statistics(
         self,
         session: AsyncSession,
-        user_id: str,
+        user_id: Union[uuid.UUID, str],
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> Dict:
@@ -28,7 +29,7 @@ class UsageRepository:
         
         Args:
             session: AsyncSession 인스턴스
-            user_id: 사용자 ID
+            user_id: 사용자 ID (UUID 또는 UUID 문자열)
             start_date: 시작 날짜 (선택)
             end_date: 종료 날짜 (선택)
             
@@ -40,6 +41,10 @@ class UsageRepository:
             - request_count: 요청 횟수 (assistant 메시지 수)
             - model_breakdown: 모델별 사용량
         """
+        # 문자열인 경우 UUID로 변환
+        if isinstance(user_id, str):
+            user_id = uuid.UUID(user_id)
+            
         # Conversation에서 assistant 메시지만 집계 (토큰 정보가 있는 메시지)
         conditions = [
             Conversation.user_id == user_id,
@@ -107,7 +112,7 @@ class UsageRepository:
     async def get_user_daily_statistics(
         self,
         session: AsyncSession,
-        user_id: str,
+        user_id: Union[uuid.UUID, str],
         days: int = 30,
     ) -> List[Dict]:
         """
@@ -115,12 +120,16 @@ class UsageRepository:
         
         Args:
             session: AsyncSession 인스턴스
-            user_id: 사용자 ID
+            user_id: 사용자 ID (UUID 또는 UUID 문자열)
             days: 조회할 일수 (기본 30일)
             
         Returns:
             일별 통계 리스트
         """
+        # 문자열인 경우 UUID로 변환
+        if isinstance(user_id, str):
+            user_id = uuid.UUID(user_id)
+            
         # Conversation에서 assistant 메시지만 집계
         stmt = (
             select(
@@ -157,7 +166,7 @@ class UsageRepository:
     async def get_user_monthly_statistics(
         self,
         session: AsyncSession,
-        user_id: str,
+        user_id: Union[uuid.UUID, str],
         months: int = 12,
     ) -> List[Dict]:
         """
@@ -165,12 +174,16 @@ class UsageRepository:
         
         Args:
             session: AsyncSession 인스턴스
-            user_id: 사용자 ID
+            user_id: 사용자 ID (UUID 또는 UUID 문자열)
             months: 조회할 개월수 (기본 12개월)
             
         Returns:
             월별 통계 리스트
         """
+        # 문자열인 경우 UUID로 변환
+        if isinstance(user_id, str):
+            user_id = uuid.UUID(user_id)
+            
         # Conversation에서 assistant 메시지만 집계
         stmt = (
             select(
@@ -271,7 +284,7 @@ class UsageRepository:
     async def get_chat_room_statistics(
         self,
         session: AsyncSession,
-        chat_room_id: str,
+        chat_room_id: Union[uuid.UUID, str],
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> Dict:
@@ -280,13 +293,17 @@ class UsageRepository:
         
         Args:
             session: AsyncSession 인스턴스
-            chat_room_id: 채팅방 ID
+            chat_room_id: 채팅방 ID (UUID 또는 UUID 문자열)
             start_date: 시작 날짜 (선택)
             end_date: 종료 날짜 (선택)
             
         Returns:
             통계 정보 딕셔너리
         """
+        # 문자열인 경우 UUID로 변환
+        if isinstance(chat_room_id, str):
+            chat_room_id = uuid.UUID(chat_room_id)
+            
         conditions = [
             Conversation.chat_room_id == chat_room_id,
             Conversation.role == "assistant",
@@ -353,8 +370,8 @@ class UsageRepository:
     async def get_user_chat_room_statistics(
         self,
         session: AsyncSession,
-        user_id: str,
-        chat_room_id: str,
+        user_id: Union[uuid.UUID, str],
+        chat_room_id: Union[uuid.UUID, str],
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> Dict:
@@ -363,14 +380,20 @@ class UsageRepository:
         
         Args:
             session: AsyncSession 인스턴스
-            user_id: 사용자 ID
-            chat_room_id: 채팅방 ID
+            user_id: 사용자 ID (UUID 또는 UUID 문자열)
+            chat_room_id: 채팅방 ID (UUID 또는 UUID 문자열)
             start_date: 시작 날짜 (선택)
             end_date: 종료 날짜 (선택)
             
         Returns:
             통계 정보 딕셔너리
         """
+        # 문자열인 경우 UUID로 변환
+        if isinstance(user_id, str):
+            user_id = uuid.UUID(user_id)
+        if isinstance(chat_room_id, str):
+            chat_room_id = uuid.UUID(chat_room_id)
+            
         conditions = [
             Conversation.user_id == user_id,
             Conversation.chat_room_id == chat_room_id,
@@ -414,7 +437,7 @@ class UsageRepository:
     async def get_user_chat_rooms_breakdown(
         self,
         session: AsyncSession,
-        user_id: str,
+        user_id: Union[uuid.UUID, str],
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> List[Dict]:
@@ -423,13 +446,17 @@ class UsageRepository:
         
         Args:
             session: AsyncSession 인스턴스
-            user_id: 사용자 ID
+            user_id: 사용자 ID (UUID 또는 UUID 문자열)
             start_date: 시작 날짜 (선택)
             end_date: 종료 날짜 (선택)
             
         Returns:
             채팅방별 통계 리스트
         """
+        # 문자열인 경우 UUID로 변환
+        if isinstance(user_id, str):
+            user_id = uuid.UUID(user_id)
+            
         conditions = [
             Conversation.user_id == user_id,
             Conversation.role == "assistant",
@@ -473,7 +500,7 @@ _usage_repository = UsageRepository()
 
 
 async def get_user_statistics(
-    user_id: str,
+    user_id: Union[uuid.UUID, str],
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
 ) -> Dict:
@@ -498,7 +525,7 @@ async def get_user_statistics(
 
 
 async def get_user_daily_statistics(
-    user_id: str,
+    user_id: Union[uuid.UUID, str],
     days: int = 30,
 ) -> List[Dict]:
     """
@@ -520,7 +547,7 @@ async def get_user_daily_statistics(
 
 
 async def get_user_monthly_statistics(
-    user_id: str,
+    user_id: Union[uuid.UUID, str],
     months: int = 12,
 ) -> List[Dict]:
     """
@@ -567,7 +594,7 @@ async def get_all_users_statistics(
 
 
 async def get_chat_room_statistics(
-    chat_room_id: str,
+    chat_room_id: Union[uuid.UUID, str],
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
 ) -> Dict:
@@ -592,8 +619,8 @@ async def get_chat_room_statistics(
 
 
 async def get_user_chat_room_statistics(
-    user_id: str,
-    chat_room_id: str,
+    user_id: Union[uuid.UUID, str],
+    chat_room_id: Union[uuid.UUID, str],
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
 ) -> Dict:
@@ -620,7 +647,7 @@ async def get_user_chat_room_statistics(
 
 
 async def get_user_chat_rooms_breakdown(
-    user_id: str,
+    user_id: Union[uuid.UUID, str],
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
 ) -> List[Dict]:

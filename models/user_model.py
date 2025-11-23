@@ -5,6 +5,7 @@ from typing import Optional, List
 from datetime import datetime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import String, Integer, TIMESTAMP, func
+from sqlalchemy.dialects.postgresql import UUID
 
 from core.database import Base
 
@@ -28,10 +29,10 @@ class User(Base):
     """
     __tablename__ = "users"
 
-    id: Mapped[str] = mapped_column(
-        String,
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
         primary_key=True,
-        default=lambda: str(uuid.uuid4())
+        default=uuid.uuid4
     )
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
     telegram_id: Mapped[Optional[int]] = mapped_column(Integer, unique=True, nullable=True)

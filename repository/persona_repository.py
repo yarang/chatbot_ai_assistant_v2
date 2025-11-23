@@ -1,4 +1,5 @@
-from typing import List, Optional
+import uuid
+from typing import List, Optional, Union
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_
 
@@ -12,7 +13,7 @@ class PersonaRepository:
     async def create_persona(
         self,
         session: AsyncSession,
-        user_id: str,
+        user_id: Union[uuid.UUID, str],
         name: str,
         content: str,
         description: Optional[str] = None,
@@ -23,7 +24,7 @@ class PersonaRepository:
         
         Args:
             session: AsyncSession 인스턴스
-            user_id: 생성자 User ID
+            user_id: 생성자 User ID (UUID 또는 UUID 문자열)
             name: Persona 이름
             content: Persona 내용 (시스템 프롬프트)
             description: Persona 설명 (선택)
@@ -32,6 +33,10 @@ class PersonaRepository:
         Returns:
             생성된 Persona 인스턴스
         """
+        # 문자열인 경우 UUID로 변환
+        if isinstance(user_id, str):
+            user_id = uuid.UUID(user_id)
+            
         persona = Persona(
             user_id=user_id,
             name=name,
@@ -47,20 +52,26 @@ class PersonaRepository:
     async def get_persona_by_id(
         self,
         session: AsyncSession,
-        persona_id: str,
-        user_id: Optional[str] = None,
+        persona_id: Union[uuid.UUID, str],
+        user_id: Optional[Union[uuid.UUID, str]] = None,
     ) -> Optional[Persona]:
         """
         Persona 조회
         
         Args:
             session: AsyncSession 인스턴스
-            persona_id: Persona ID
-            user_id: 조회하는 사용자 ID (소유자 또는 공개 Persona만 조회 가능)
+            persona_id: Persona ID (UUID 또는 UUID 문자열)
+            user_id: 조회하는 사용자 ID (소유자 또는 공개 Persona만 조회 가능, UUID 또는 UUID 문자열)
             
         Returns:
             Persona 인스턴스 또는 None
         """
+        # 문자열인 경우 UUID로 변환
+        if isinstance(persona_id, str):
+            persona_id = uuid.UUID(persona_id)
+        if isinstance(user_id, str):
+            user_id = uuid.UUID(user_id)
+            
         stmt = select(Persona).where(Persona.id == persona_id)
         
         if user_id:
@@ -78,7 +89,7 @@ class PersonaRepository:
     async def get_user_personas(
         self,
         session: AsyncSession,
-        user_id: str,
+        user_id: Union[uuid.UUID, str],
         include_public: bool = True,
     ) -> List[Persona]:
         """
@@ -86,12 +97,16 @@ class PersonaRepository:
         
         Args:
             session: AsyncSession 인스턴스
-            user_id: User ID
+            user_id: User ID (UUID 또는 UUID 문자열)
             include_public: 공개 Persona 포함 여부
             
         Returns:
             Persona 리스트
         """
+        # 문자열인 경우 UUID로 변환
+        if isinstance(user_id, str):
+            user_id = uuid.UUID(user_id)
+            
         conditions = [Persona.user_id == user_id]
         
         if include_public:
@@ -110,8 +125,8 @@ class PersonaRepository:
     async def update_persona(
         self,
         session: AsyncSession,
-        persona_id: str,
-        user_id: str,
+        persona_id: Union[uuid.UUID, str],
+        user_id: Union[uuid.UUID, str],
         name: Optional[str] = None,
         content: Optional[str] = None,
         description: Optional[str] = None,
@@ -122,8 +137,8 @@ class PersonaRepository:
         
         Args:
             session: AsyncSession 인스턴스
-            persona_id: Persona ID
-            user_id: 수정하는 사용자 ID (소유자만 가능)
+            persona_id: Persona ID (UUID 또는 UUID 문자열)
+            user_id: 수정하는 사용자 ID (소유자만 가능, UUID 또는 UUID 문자열)
             name: Persona 이름
             content: Persona 내용
             description: Persona 설명
@@ -132,6 +147,12 @@ class PersonaRepository:
         Returns:
             수정된 Persona 인스턴스 또는 None
         """
+        # 문자열인 경우 UUID로 변환
+        if isinstance(persona_id, str):
+            persona_id = uuid.UUID(persona_id)
+        if isinstance(user_id, str):
+            user_id = uuid.UUID(user_id)
+            
         stmt = select(Persona).where(
             and_(
                 Persona.id == persona_id,
@@ -160,20 +181,26 @@ class PersonaRepository:
     async def delete_persona(
         self,
         session: AsyncSession,
-        persona_id: str,
-        user_id: str,
+        persona_id: Union[uuid.UUID, str],
+        user_id: Union[uuid.UUID, str],
     ) -> bool:
         """
         Persona 삭제 (소유자만 가능)
         
         Args:
             session: AsyncSession 인스턴스
-            persona_id: Persona ID
-            user_id: 삭제하는 사용자 ID (소유자만 가능)
+            persona_id: Persona ID (UUID 또는 UUID 문자열)
+            user_id: 삭제하는 사용자 ID (소유자만 가능, UUID 또는 UUID 문자열)
             
         Returns:
             삭제 성공 여부
         """
+        # 문자열인 경우 UUID로 변환
+        if isinstance(persona_id, str):
+            persona_id = uuid.UUID(persona_id)
+        if isinstance(user_id, str):
+            user_id = uuid.UUID(user_id)
+            
         stmt = select(Persona).where(
             and_(
                 Persona.id == persona_id,
@@ -220,7 +247,7 @@ _persona_repository = PersonaRepository()
 
 # 편의 함수들
 async def create_persona(
-    user_id: str,
+    user_id: Union[uuid.UUID, str],
     name: str,
     content: str,
     description: Optional[str] = None,
@@ -239,8 +266,8 @@ async def create_persona(
 
 
 async def get_persona_by_id(
-    persona_id: str,
-    user_id: Optional[str] = None,
+    persona_id: Union[uuid.UUID, str],
+    user_id: Optional[Union[uuid.UUID, str]] = None,
 ) -> Optional[Persona]:
     """Persona 조회 (편의 함수)"""
     async with get_async_session() as session:
@@ -252,7 +279,7 @@ async def get_persona_by_id(
 
 
 async def get_user_personas(
-    user_id: str,
+    user_id: Union[uuid.UUID, str],
     include_public: bool = True,
 ) -> List[Persona]:
     """사용자의 Persona 목록 조회 (편의 함수)"""
@@ -265,8 +292,8 @@ async def get_user_personas(
 
 
 async def update_persona(
-    persona_id: str,
-    user_id: str,
+    persona_id: Union[uuid.UUID, str],
+    user_id: Union[uuid.UUID, str],
     name: Optional[str] = None,
     content: Optional[str] = None,
     description: Optional[str] = None,
@@ -286,8 +313,8 @@ async def update_persona(
 
 
 async def delete_persona(
-    persona_id: str,
-    user_id: str,
+    persona_id: Union[uuid.UUID, str],
+    user_id: Union[uuid.UUID, str],
 ) -> bool:
     """Persona 삭제 (편의 함수)"""
     async with get_async_session() as session:

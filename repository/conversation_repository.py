@@ -1,4 +1,5 @@
-from typing import List, Tuple, Optional
+import uuid
+from typing import List, Tuple, Optional, Union
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 
@@ -12,8 +13,8 @@ class ConversationRepository:
     async def add_message(
         self,
         session: AsyncSession,
-        user_id: str,
-        chat_room_id: str,
+        user_id: Union[uuid.UUID, str],
+        chat_room_id: Union[uuid.UUID, str],
         role: str,
         message: str,
         model: Optional[str] = None,
@@ -25,8 +26,8 @@ class ConversationRepository:
         
         Args:
             session: AsyncSession 인스턴스
-            user_id: 사용자 식별자
-            chat_room_id: 채팅방 식별자
+            user_id: 사용자 식별자 (UUID 또는 UUID 문자열)
+            chat_room_id: 채팅방 식별자 (UUID 또는 UUID 문자열)
             role: 역할 (user/assistant)
             message: 메시지 내용
             model: 사용한 AI 모델 (assistant 메시지의 경우)
@@ -36,6 +37,12 @@ class ConversationRepository:
         Returns:
             생성된 Conversation 인스턴스
         """
+        # 문자열인 경우 UUID로 변환
+        if isinstance(user_id, str):
+            user_id = uuid.UUID(user_id)
+        if isinstance(chat_room_id, str):
+            chat_room_id = uuid.UUID(chat_room_id)
+            
         conversation = Conversation(
             user_id=user_id,
             chat_room_id=chat_room_id,
@@ -53,7 +60,7 @@ class ConversationRepository:
     async def get_history(
         self,
         session: AsyncSession,
-        chat_room_id: str,
+        chat_room_id: Union[uuid.UUID, str],
         limit: int = 20,
     ) -> List[Tuple[str, str]]:
         """
@@ -61,12 +68,16 @@ class ConversationRepository:
         
         Args:
             session: AsyncSession 인스턴스
-            chat_room_id: 채팅방 식별자
+            chat_room_id: 채팅방 식별자 (UUID 또는 UUID 문자열)
             limit: 조회할 최대 개수
             
         Returns:
             (role, message) 튜플 리스트
         """
+        # 문자열인 경우 UUID로 변환
+        if isinstance(chat_room_id, str):
+            chat_room_id = uuid.UUID(chat_room_id)
+            
         stmt = (
             select(Conversation.role, Conversation.message)
             .where(Conversation.chat_room_id == chat_room_id)
@@ -86,8 +97,8 @@ _conversation_repository = ConversationRepository()
 
 
 async def add_message(
-    user_id: str,
-    chat_room_id: str,
+    user_id: Union[uuid.UUID, str],
+    chat_room_id: Union[uuid.UUID, str],
     role: str,
     message: str,
     model: Optional[str] = None,
@@ -98,8 +109,8 @@ async def add_message(
     메시지 추가 (편의 함수)
     
     Args:
-        user_id: 사용자 식별자
-        chat_room_id: 채팅방 식별자
+        user_id: 사용자 식별자 (UUID 또는 UUID 문자열)
+        chat_room_id: 채팅방 식별자 (UUID 또는 UUID 문자열)
         role: 역할 (user/assistant)
         message: 메시지 내용
         model: 사용한 AI 모델 (assistant 메시지의 경우)
@@ -119,12 +130,12 @@ async def add_message(
         )
 
 
-async def get_history(chat_room_id: str, limit: int = 20) -> List[Tuple[str, str]]:
+async def get_history(chat_room_id: Union[uuid.UUID, str], limit: int = 20) -> List[Tuple[str, str]]:
     """
     채팅방의 대화 이력 조회 (편의 함수)
     
     Args:
-        chat_room_id: 채팅방 식별자
+        chat_room_id: 채팅방 식별자 (UUID 또는 UUID 문자열)
         limit: 조회할 최대 개수
         
     Returns:

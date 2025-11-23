@@ -1,4 +1,5 @@
-from typing import Optional
+import uuid
+from typing import Optional, Union
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -56,17 +57,20 @@ class ChatRoomRepository:
             await session.refresh(new_chat_room)
             return new_chat_room
 
-    async def get_chat_room_by_id(self, session: AsyncSession, chat_room_id: str) -> Optional[ChatRoom]:
+    async def get_chat_room_by_id(self, session: AsyncSession, chat_room_id: Union[uuid.UUID, str]) -> Optional[ChatRoom]:
         """
         ID로 채팅방 조회
         
         Args:
             session: AsyncSession 인스턴스
-            chat_room_id: 채팅방 ID (UUID)
+            chat_room_id: 채팅방 ID (UUID 또는 UUID 문자열)
             
         Returns:
             ChatRoom 인스턴스 또는 None
         """
+        # 문자열인 경우 UUID로 변환
+        if isinstance(chat_room_id, str):
+            chat_room_id = uuid.UUID(chat_room_id)
         result = await session.get(ChatRoom, chat_room_id)
         return result
 
@@ -92,16 +96,16 @@ class ChatRoomRepository:
     async def set_persona(
         self,
         session: AsyncSession,
-        chat_room_id: str,
-        persona_id: Optional[str] = None,
+        chat_room_id: Union[uuid.UUID, str],
+        persona_id: Optional[Union[uuid.UUID, str]] = None,
     ) -> Optional[ChatRoom]:
         """
         채팅방에 Persona 설정
         
         Args:
             session: AsyncSession 인스턴스
-            chat_room_id: 채팅방 ID
-            persona_id: Persona ID (None이면 제거)
+            chat_room_id: 채팅방 ID (UUID 또는 UUID 문자열)
+            persona_id: Persona ID (None이면 제거, UUID 또는 UUID 문자열)
             
         Returns:
             업데이트된 ChatRoom 인스턴스 또는 None
@@ -109,6 +113,10 @@ class ChatRoomRepository:
         chat_room = await self.get_chat_room_by_id(session, chat_room_id)
         if not chat_room:
             return None
+        
+        # 문자열인 경우 UUID로 변환
+        if persona_id is not None and isinstance(persona_id, str):
+            persona_id = uuid.UUID(persona_id)
         
         chat_room.persona_id = persona_id
         await session.flush()
@@ -148,12 +156,12 @@ async def upsert_chat_room(
         )
 
 
-async def get_chat_room_by_id(chat_room_id: str) -> Optional[ChatRoom]:
+async def get_chat_room_by_id(chat_room_id: Union[uuid.UUID, str]) -> Optional[ChatRoom]:
     """
     ID로 채팅방 조회 (편의 함수)
     
     Args:
-        chat_room_id: 채팅방 ID (UUID)
+        chat_room_id: 채팅방 ID (UUID 또는 UUID 문자열)
         
     Returns:
         ChatRoom 인스턴스 또는 None
@@ -177,15 +185,15 @@ async def get_chat_room_by_telegram_id(telegram_chat_id: int) -> Optional[ChatRo
 
 
 async def set_chat_room_persona(
-    chat_room_id: str,
-    persona_id: Optional[str] = None,
+    chat_room_id: Union[uuid.UUID, str],
+    persona_id: Optional[Union[uuid.UUID, str]] = None,
 ) -> Optional[ChatRoom]:
     """
     채팅방에 Persona 설정 (편의 함수)
     
     Args:
-        chat_room_id: 채팅방 ID
-        persona_id: Persona ID (None이면 제거)
+        chat_room_id: 채팅방 ID (UUID 또는 UUID 문자열)
+        persona_id: Persona ID (None이면 제거, UUID 또는 UUID 문자열)
         
     Returns:
         업데이트된 ChatRoom 인스턴스 또는 None

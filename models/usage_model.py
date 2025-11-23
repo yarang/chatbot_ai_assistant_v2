@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Optional
 from datetime import datetime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Integer, String, ForeignKey, TIMESTAMP, func
+from sqlalchemy.dialects.postgresql import UUID
 
 from core.database import Base
 
@@ -40,19 +41,19 @@ class UsageLog(Base):
     """
     __tablename__ = "usage_logs"
 
-    id: Mapped[str] = mapped_column(
-        String,
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
         primary_key=True,
-        default=lambda: str(uuid.uuid4())
+        default=uuid.uuid4
     )
-    user_id: Mapped[str] = mapped_column(
-        String,
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True
     )
-    chat_room_id: Mapped[str] = mapped_column(
-        String,
+    chat_room_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
         ForeignKey("chat_rooms.id", ondelete="CASCADE"),
         nullable=False,
         index=True
