@@ -1,6 +1,20 @@
 from typing import List, Tuple, Dict, Optional
-from core.config import load_config
+import google.generativeai as genai
+from core.config import get_settings
+from core.logger import get_logger
 
+logger = get_logger(__name__)
+
+class GeminiService:
+    def __init__(self):
+        settings = get_settings()
+        api_key = settings.gemini.api_key
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY not found in config")
+        
+        genai.configure(api_key=api_key)
+        self.model = genai.GenerativeModel('gemini-pro')
+        
 
 async def generate_answer(
     history: List[Tuple[str, str]], 
@@ -24,8 +38,8 @@ async def generate_answer(
         }
     """
     # Placeholder for Gemini API integration. Keeps interface ready.
-    config = load_config()
-    model = config["gemini"]["model"]
+    settings = get_settings()
+    model = settings.gemini.model_name
     # For now, echo a simple deterministic response for local testing
     context = "\n".join([f"{role}: {msg}" for role, msg in history[-6:]])
     

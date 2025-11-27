@@ -1,11 +1,10 @@
-import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy import text
-from core.config import load_config
+from core.config import get_settings
 
 
 class Base(DeclarativeBase):
@@ -18,36 +17,35 @@ _engine = None
 _async_session_maker = None
 
 
-def _get_database_url() -> str:
-    """데이터베이스 URL 생성 (PostgreSQL만 지원)"""
-    config = load_config()
-    db_config = config["database"]
+def get_database_url(async_driver: bool = True) -> str:
+    """
+    데이터베이스 URL 생성
     
-    # PostgreSQL URL 형식: postgresql+asyncpg://user:password@host:port/database
-    user = db_config.get("user", "postgres")
-    password = db_config.get("password", "")
-    host = db_config.get("host", "localhost")
-    port = db_config.get("port", 5432)
-    database = db_config.get("database", "chatbot_db")
+    Args:
+        async_driver: True이면 asyncpg (비동기), False이면 psycopg (동기) 드라이버 사용
+    """
+    settings = get_settings()
+    db = settings.database
     
-    # 환경변수에서 비밀번호 가져오기 (보안)
-    password = os.getenv("DATABASE_PASSWORD", password)
-    user = os.getenv("DATABASE_USER", user)
-    host = os.getenv("DATABASE_HOST", host)
-    port = int(os.getenv("DATABASE_PORT", port))
-    database = os.getenv("DATABASE_NAME", database)
+    user = db.user
+    password = db.password
+    host = db.host
+    port = db.port
+    database = db.name
+    
+    driver = "postgresql+asyncpg" if async_driver else "postgresql+psycopg"
     
     if password:
-        return f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}"
+        return f"{driver}://{user}:{password}@{host}:{port}/{database}"
     else:
-        return f"postgresql+asyncpg://{user}@{host}:{port}/{database}"
+        return f"{driver}://{user}@{host}:{port}/{database}"
 
 
 def get_engine():
     """SQLAlchemy async engine 반환 (싱글톤)"""
     global _engine
     if _engine is None:
-        database_url = _get_database_url()
+        database_url = get_database_url()
         _engine = create_async_engine(
             database_url,
             echo=False

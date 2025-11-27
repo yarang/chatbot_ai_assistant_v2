@@ -1,16 +1,19 @@
 from fastapi import APIRouter, Request, BackgroundTasks
 from telegram import Update, Bot
-from core.config import load_config
+from core.config import get_settings
 from core.graph import graph
+from core.logger import get_logger
 from langchain_core.messages import HumanMessage, AIMessage
 from repository.user_repository import upsert_user
 from repository.chat_room_repository import upsert_chat_room, set_chat_room_persona
-from repository.persona_repository import get_public_personas, get_persona_by_id
+from repository.persona_repository import get_public_personas, get_persona_by_id, create_persona, get_user_personas
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 
-config = load_config()
-bot_token = config["telegram"]["bot_token"]
+settings = get_settings()
+bot_token = settings.telegram.bot_token
 # Initialize Bot only if token is present to avoid errors during startup if not configured
 bot = Bot(token=bot_token) if bot_token else None
 
@@ -29,54 +32,184 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
         
     return {"status": "ok"}
 
-async def process_update(update: Update):
-    user = update.effective_user
-    chat = update.effective_chat
-    message = update.message
-    text = message.text
-    
-    if not text:
-        return
 
-    # 1. Ensure User exists
-    # Email is required, so generate one
-    email = f"telegram_{user.id}@telegram.placeholder"
-    db_user = await upsert_user(
-        email=email,
-        telegram_id=user.id,
-        username=user.username,
-        first_name=user.first_name,
-        last_name=user.last_name
-    )
+# Global cache for bot username
+BOT_USERNAME = None
+
+async def process_update(update: Update):
+    global BOT_USERNAME
     
-    # 2. Ensure ChatRoom exists
-    db_chat_room = await upsert_chat_room(
-        telegram_chat_id=chat.id,
-        name=chat.title or user.first_name,
-        type=chat.type,
-        username=chat.username
-    )
-    
-    # 3. Handle Commands
-    if text.startswith("/start"):
-        await bot.send_message(chat_id=chat.id, text="Hello! I am your AI assistant. You can set a persona using /persona.")
-        return
+    try:
+        user = update.effective_user
+        chat = update.effective_chat
+        message = update.message
         
-    if text.startswith("/persona"):
-        # List personas or set one
-        parts = text.split()
-        if len(parts) == 1:
-            # List public personas
-            personas = await get_public_personas()
-            if not personas:
-                await bot.send_message(chat_id=chat.id, text="No public personas available.")
-            else:
-                msg = "Available Personas:\n"
-                for p in personas:
-                    msg += f"- {p.name} (ID: {p.id})\n"
-                msg += "\nUse `/persona <id>` to set."
-                await bot.send_message(chat_id=chat.id, text=msg)
+        # Handle edited messages or other updates that might not have a message
+        if not message:
+            logger.debug("Update has no message, skipping")
+            return
+
+        text = message.text or message.caption
+        
+        if not text and not message.photo:
+            logger.debug("Message has no text or photo, skipping")
+            return
+        
+        logger.info(f"Processing message from chat_id={chat.id}, chat_type={chat.type}, user_id={user.id}, text_preview={text[:50] if text else 'photo'}")
+
+        # Lazy load bot username
+        if BOT_USERNAME is None:
+            if settings.telegram.bot_username:
+                 BOT_USERNAME = settings.telegram.bot_username
+            elif bot:
+                try:
+                    me = await bot.get_me()
+                    BOT_USERNAME = me.username
+                except Exception as e:
+                    print(f"Failed to fetch bot username: {e}")
+
+
+        # Group Chat Selective Response Logic
+        if chat.type in ["group", "supergroup"]:
+            logger.debug(f"Group chat detected, checking for mentions or replies")
+            is_mentioned = False
+            is_reply_to_bot = False
+            
+            # Check for mention using entities
+            if message.entities:
+                for entity in message.entities:
+                    if entity.type == "mention":
+                        # Extract username from text
+                        mention_text = text[entity.offset:entity.offset + entity.length]
+                        if BOT_USERNAME and mention_text.lower() == f"@{BOT_USERNAME.lower()}":
+                            is_mentioned = True
+                            logger.info(f"Bot mentioned via @mention in group chat")
+                            break
+                    elif entity.type == "text_mention":
+                        # Check if it mentions the bot user
+                        if BOT_USERNAME and entity.user and entity.user.username == BOT_USERNAME:
+                            is_mentioned = True
+                            logger.info(f"Bot mentioned via text_mention in group chat")
+                            break
+            
+            # Fallback: Check for mention in text if entities didn't catch it (or if checking text is preferred)
+            if not is_mentioned and BOT_USERNAME and f"@{BOT_USERNAME}" in text:
+                is_mentioned = True
+                logger.info(f"Bot mentioned via text search in group chat")
+
+            # Check for reply
+            if message.reply_to_message and message.reply_to_message.from_user:
+                # We need to know bot's ID to check if reply is to bot.
+                # bot.get_me() returns User object which has ID.
+                # We can cache BOT_ID as well if needed, but let's assume we can check username or ID.
+                # If we have BOT_USERNAME, we can check if reply user is us.
+                if BOT_USERNAME and message.reply_to_message.from_user.username == BOT_USERNAME:
+                    is_reply_to_bot = True
+                    logger.info(f"Message is a reply to bot in group chat")
+                    
+            if not (is_mentioned or is_reply_to_bot):
+                # Ignore message
+                logger.debug(f"Ignoring group message - not mentioned or replied to")
+                return
         else:
+            logger.debug(f"Non-group chat (type={chat.type}), processing message")
+
+        # 1. Ensure User exists
+        # Email is required, so generate one
+        logger.debug(f"Upserting user with telegram_id={user.id}")
+        email = f"telegram_{user.id}@telegram.placeholder"
+        db_user = await upsert_user(
+            email=email,
+            telegram_id=user.id,
+            username=user.username,
+            first_name=user.first_name,
+            last_name=user.last_name
+        )
+        logger.debug(f"User upserted: db_user_id={db_user.id}")
+        
+        # 2. Ensure ChatRoom exists
+        logger.debug(f"Upserting chat room with telegram_chat_id={chat.id}")
+        db_chat_room = await upsert_chat_room(
+            telegram_chat_id=chat.id,
+            name=chat.title or user.first_name,
+            type=chat.type,
+            username=chat.username
+        )
+        logger.debug(f"Chat room upserted: db_chat_room_id={db_chat_room.id}")
+        
+        # 3. Handle Commands
+        if text.startswith("/start") or text.startswith("/help"):
+            help_text = """
+Hello! I am your AI assistant. You can use the following commands:
+
+/help - Show this help message
+/persona - Show current persona
+/personas - List available personas
+/create_persona - Create a new persona
+/select_persona <id> - Select a persona
+"""
+            await bot.send_message(chat_id=chat.id, text=help_text)
+            return
+
+        if text.startswith("/create_persona"):
+            # Expected format: /create_persona {"name": "...", "content": "..."}
+            try:
+                import json
+                # Extract JSON part
+                json_str = text.replace("/create_persona", "", 1).strip()
+                if not json_str:
+                    await bot.send_message(
+                        chat_id=chat.id, 
+                        text="Please provide persona data in JSON format.\nExample: /create_persona {\"name\": \"My Persona\", \"content\": \"You are a helpful assistant.\"}"
+                    )
+                    return
+
+                data = json.loads(json_str)
+                name = data.get("name")
+                content = data.get("content")
+                description = data.get("description")
+                is_public = data.get("is_public", False)
+
+                if not name or not content:
+                    await bot.send_message(chat_id=chat.id, text="Name and content are required.")
+                    return
+
+                new_persona = await create_persona(
+                    user_id=db_user.id,
+                    name=name,
+                    content=content,
+                    description=description,
+                    is_public=is_public
+                )
+                await bot.send_message(chat_id=chat.id, text=f"Persona created: {new_persona.name} (ID: {new_persona.id})")
+            except json.JSONDecodeError:
+                await bot.send_message(chat_id=chat.id, text="Invalid JSON format.")
+            except Exception as e:
+                await bot.send_message(chat_id=chat.id, text=f"Error creating persona: {e}")
+            return
+
+        if text.startswith("/personas"):
+            # List user's personas + public personas
+            try:
+                user_personas = await get_user_personas(db_user.id, include_public=True)
+                if not user_personas:
+                    await bot.send_message(chat_id=chat.id, text="No personas found.")
+                else:
+                    msg = "Available Personas:\n\n"
+                    for p in user_personas:
+                        msg += f"- {p.name}\n  ID: `{p.id}`\n  {p.description or ''}\n\n"
+                    msg += "Use `/select_persona <id>` to set."
+                    await bot.send_message(chat_id=chat.id, text=msg, parse_mode="Markdown")
+            except Exception as e:
+                await bot.send_message(chat_id=chat.id, text=f"Error fetching personas: {e}")
+            return
+
+        if text.startswith("/select_persona"):
+            parts = text.split()
+            if len(parts) < 2:
+                await bot.send_message(chat_id=chat.id, text="Usage: /select_persona <id>")
+                return
+                
             persona_id = parts[1]
             try:
                 # Verify persona exists
@@ -88,28 +221,131 @@ async def process_update(update: Update):
                     await bot.send_message(chat_id=chat.id, text="Persona not found.")
             except Exception as e:
                 await bot.send_message(chat_id=chat.id, text=f"Error setting persona: {e}")
-        return
+            return
+            
+        if text.startswith("/persona"):
+            # Show current persona
+            if db_chat_room.persona_id:
+                persona = await get_persona_by_id(db_chat_room.persona_id)
+                if persona:
+                    await bot.send_message(chat_id=chat.id, text=f"Current Persona: {persona.name}\n{persona.description or ''}")
+                else:
+                    await bot.send_message(chat_id=chat.id, text="Current persona ID not found (maybe deleted).")
+            else:
+                await bot.send_message(chat_id=chat.id, text="No persona set. Using default.")
+            return
 
-    # 4. Invoke Graph
-    inputs = {
-        "messages": [HumanMessage(content=text)],
-        "user_id": str(db_user.id),
-        "chat_room_id": str(db_chat_room.id),
-        "model_name": None 
-    }
+        # 4. Invoke Graph with Streaming
+        import base64
+        from services.conversation_service import ask_question_stream
+        
+        # Check for photo
+        image_data = None
+        if message.photo:
+            try:
+                # Get largest photo
+                photo = message.photo[-1]
+                file_obj = await bot.get_file(photo.file_id)
+                image_bytes = await file_obj.download_as_bytearray()
+                b64_str = base64.b64encode(image_bytes).decode('utf-8')
+                image_data = f"data:image/jpeg;base64,{b64_str}"
+                
+                # If no text caption, use default text
+                if not text:
+                    text = "Describe this image."
+            except Exception as e:
+                print(f"Error processing photo: {e}")
+                await bot.send_message(chat_id=chat.id, text="Failed to process image.")
+                return
+
+        message_content = text
+        if image_data:
+            message_content = [
+                {"type": "text", "text": text},
+                {"type": "image_url", "image_url": {"url": image_data}}
+            ]
+
+        # For now, streaming doesn't support multimodal (image) due to complexity
+        # Fall back to non-streaming for images
+        if image_data:
+            inputs = {
+                "messages": [HumanMessage(content=message_content)],
+                "user_id": str(db_user.id),
+                "chat_room_id": str(db_chat_room.id),
+                "model_name": "gemini-1.5-flash"
+            }
+            
+            try:
+                result = await graph.ainvoke(inputs)
+                response_messages = result["messages"]
+                ai_response = response_messages[-1]
+                
+                if isinstance(ai_response, AIMessage):
+                     await bot.send_message(chat_id=chat.id, text=ai_response.content)
+                else:
+                     await bot.send_message(chat_id=chat.id, text="I didn't get a response.")
+                
+            except Exception as e:
+                print(f"Error processing message: {e}")
+                await bot.send_message(chat_id=chat.id, text="Sorry, I encountered an error.")
+            return
+        
+        # Streaming response for text-only messages
+        logger.info(f"Starting streaming response for user_id={db_user.id}, chat_room_id={db_chat_room.id}")
+        try:
+            # Send initial message with typing indicator
+            sent_msg = await bot.send_message(chat_id=chat.id, text="...")
+            logger.debug(f"Sent initial message: message_id={sent_msg.message_id}")
+            
+            full_response = ""
+            last_update_time = 0
+            update_interval = 0.5  # Seconds between updates
+            chunk_count = 0
+            
+            async for chunk in ask_question_stream(
+                user_id=str(db_user.id),
+                chat_room_id=str(db_chat_room.id),
+                question=text
+            ):
+                full_response += chunk
+                chunk_count += 1
+                
+                # Rate limit message updates
+                import time
+                current_time = time.time()
+                if current_time - last_update_time >= update_interval:
+                    try:
+                        await bot.edit_message_text(
+                            chat_id=chat.id,
+                            message_id=sent_msg.message_id,
+                            text=full_response + "..."
+                        )
+                        last_update_time = current_time
+                    except Exception as e:
+                        # Ignore edit errors (message might be the same, or rate limited)
+                        logger.debug(f"Edit message error: {e}")
+            
+            logger.info(f"Streaming complete: received {chunk_count} chunks, total length={len(full_response)}")
+            
+            # Final update without "..."
+            try:
+                await bot.edit_message_text(
+                    chat_id=chat.id,
+                    message_id=sent_msg.message_id,
+                    text=full_response if full_response else "I didn't get a response."
+                )
+                logger.debug(f"Final message edit successful")
+            except Exception as e:
+                logger.error(f"Final edit error: {e}")
+            
+        except Exception as e:
+            logger.error(f"Error processing message in streaming block: {e}", exc_info=True)
+            await bot.send_message(chat_id=chat.id, text="Sorry, I encountered an error.")
     
-    try:
-        result = await graph.ainvoke(inputs)
-        response_messages = result["messages"]
-        # The last message should be the AI response
-        ai_response = response_messages[-1]
-        
-        if isinstance(ai_response, AIMessage):
-             await bot.send_message(chat_id=chat.id, text=ai_response.content)
-        else:
-             # Fallback if something weird happened
-             await bot.send_message(chat_id=chat.id, text="I didn't get a response.")
-        
     except Exception as e:
-        print(f"Error processing message: {e}")
-        await bot.send_message(chat_id=chat.id, text="Sorry, I encountered an error.")
+        logger.error(f"Error in process_update: {e}", exc_info=True)
+        try:
+            await bot.send_message(chat_id=chat.id, text="Sorry, I encountered an error processing your message.")
+        except Exception as send_error:
+            logger.error(f"Failed to send error message to user: {send_error}")
+

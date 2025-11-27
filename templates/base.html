@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Chatbot AI Assistant{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header>
+        <a href="/dashboard" class="logo">AI Assistant</a>
+        <nav>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/personas">Personas</a>
+            {% if is_admin %}
+            <a href="/admin">Admin</a>
+            {% endif %}
+            {% if user %}
+            <span style="margin-left: 1.5rem; color: var(--text-muted);">{{ user.first_name }}</span>
+            <a href="/logout">Logout</a>
+            {% endif %}
+        </nav>
+    </header>
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

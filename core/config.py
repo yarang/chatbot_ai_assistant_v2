@@ -1,42 +1,64 @@
-import json
-import os
 from functools import lru_cache
-from typing import Any, Dict
+from typing import List, Optional
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-CONFIG_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "config.json"))
+class DatabaseSettings(BaseSettings):
+    host: str = "localhost"
+    port: int = 5432
+    user: str = "postgres"
+    password: str = "postgres"
+    name: str = "chatbot_db"
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_prefix="DATABASE_",
+        extra="ignore"
+    )
 
 
-@lru_cache(maxsize=1)
-def load_config() -> Dict[str, Any]:
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        config = json.load(f)
+class TelegramSettings(BaseSettings):
+    bot_token: str
+    webhook_secret: Optional[str] = None
+    bot_username: Optional[str] = None
+    webhook_url: Optional[str] = None  # Full webhook URL (e.g., https://your-domain.com/webhook)
 
-    # Environment overrides
-    if os.getenv("LOG_LEVEL"):
-        config["log_level"] = os.getenv("LOG_LEVEL")
-    if os.getenv("GEMINI_API_KEY"):
-        config["gemini"]["api_key"] = os.getenv("GEMINI_API_KEY")
-    if os.getenv("TELEGRAM_BOT_TOKEN"):
-        config["telegram"]["bot_token"] = os.getenv("TELEGRAM_BOT_TOKEN")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_prefix="TELEGRAM_",
+        extra="ignore"
+    )
 
-    # Database configuration
-    db = config.get("database", {})
+
+class GeminiSettings(BaseSettings):
+    api_key: str
+    model_name: str = "gemini-pro"
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_prefix="GEMINI_",
+        extra="ignore"
+    )
+
+
+class Settings(BaseSettings):
+    log_level: str = "INFO"
+    admin_ids: List[int] = []
+    tavily_api_key: Optional[str] = None
     
-    # PostgreSQL: 환경변수로 설정 오버라이드 가능
-    if os.getenv("DATABASE_HOST"):
-        db["host"] = os.getenv("DATABASE_HOST")
-    if os.getenv("DATABASE_PORT"):
-        db["port"] = int(os.getenv("DATABASE_PORT"))
-    if os.getenv("DATABASE_USER"):
-        db["user"] = os.getenv("DATABASE_USER")
-    if os.getenv("DATABASE_NAME"):
-        db["database"] = os.getenv("DATABASE_NAME")
-    # password는 보안상 환경변수로만 설정 (database.py에서 처리)
-    
-    config["database"] = db
+    # Nested settings
+    database: DatabaseSettings = Field(default_factory=DatabaseSettings)
+    telegram: TelegramSettings = Field(default_factory=TelegramSettings)
+    gemini: GeminiSettings = Field(default_factory=GeminiSettings)
 
-    return config
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore"
+    )
 
 
-
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

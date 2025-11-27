@@ -4,7 +4,7 @@ import uuid
 from typing import Optional, List
 from datetime import datetime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Integer, TIMESTAMP, func
+from sqlalchemy import String, BigInteger, TIMESTAMP, func
 from sqlalchemy.dialects.postgresql import UUID
 
 from core.database import Base
@@ -17,7 +17,7 @@ class User(Base):
     Attributes:
         id: 사용자 ID (Primary Key, UUID)
         email: 사용자 이메일 (UNIQUE)
-        telegram_id: Telegram 사용자 ID (UNIQUE)
+        telegram_id: Telegram 사용자 ID (UNIQUE, BIGINT to support large IDs)
         username: 사용자명
         first_name: 이름
         last_name: 성
@@ -35,7 +35,7 @@ class User(Base):
         default=uuid.uuid4
     )
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
-    telegram_id: Mapped[Optional[int]] = mapped_column(Integer, unique=True, nullable=True)
+    telegram_id: Mapped[Optional[int]] = mapped_column(BigInteger, unique=True, nullable=True)
     username: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     first_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     last_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)

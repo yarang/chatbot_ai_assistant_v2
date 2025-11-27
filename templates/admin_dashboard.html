@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - AI Assistant{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem;">Admin Dashboard</h1>
+    <p style="color: var(--text-muted);">System overview and statistics.</p>
+</div>
+
+<div class="grid">
+    <div class="card">
+        <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.5rem;">Total Users</h3>
+        <p style="font-size: 2rem; font-weight: 700; margin: 0;">{{ stats.total_users }}</p>
+    </div>
+    <div class="card">
+        <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.5rem;">Active Users</h3>
+        <p style="font-size: 2rem; font-weight: 700; margin: 0;">{{ stats.active_users }}</p>
+    </div>
+    <div class="card">
+        <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.5rem;">Total Conversations</h3>
+        <p style="font-size: 2rem; font-weight: 700; margin: 0;">{{ stats.total_conversations }}</p>
+    </div>
+    <div class="card">
+        <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.5rem;">Total Personas</h3>
+        <p style="font-size: 2rem; font-weight: 700; margin: 0;">{{ stats.total_personas }}</p>
+    </div>
+</div>
+
+<!-- Future: User List, Recent Activity, etc. -->
+{% endblock %}

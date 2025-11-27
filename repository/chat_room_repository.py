@@ -123,6 +123,32 @@ class ChatRoomRepository:
         await session.refresh(chat_room)
         return chat_room
 
+    async def update_summary(
+        self,
+        session: AsyncSession,
+        chat_room_id: Union[uuid.UUID, str],
+        summary: str,
+    ) -> Optional[ChatRoom]:
+        """
+        채팅방 요약 업데이트
+        
+        Args:
+            session: AsyncSession 인스턴스
+            chat_room_id: 채팅방 ID
+            summary: 요약 내용
+            
+        Returns:
+            업데이트된 ChatRoom 인스턴스 또는 None
+        """
+        chat_room = await self.get_chat_room_by_id(session, chat_room_id)
+        if not chat_room:
+            return None
+            
+        chat_room.summary = summary
+        await session.flush()
+        await session.refresh(chat_room)
+        return chat_room
+
 
 # 싱글톤 인스턴스
 _chat_room_repository = ChatRoomRepository()
@@ -203,5 +229,20 @@ async def set_chat_room_persona(
             session=session,
             chat_room_id=chat_room_id,
             persona_id=persona_id,
+        )
+
+
+async def update_chat_room_summary(
+    chat_room_id: Union[uuid.UUID, str],
+    summary: str,
+) -> Optional[ChatRoom]:
+    """
+    채팅방 요약 업데이트 (편의 함수)
+    """
+    async with get_async_session() as session:
+        return await _chat_room_repository.update_summary(
+            session=session,
+            chat_room_id=chat_room_id,
+            summary=summary,
         )
 

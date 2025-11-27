@@ -178,3 +178,17 @@ async def get_user_by_email(email: str) -> Optional[User]:
     """
     async with get_async_session() as session:
         return await _user_repository.get_user_by_email(session, email)
+
+
+async def get_user_by_telegram_id(telegram_id: int) -> Optional[User]:
+    """
+    Telegram ID로 사용자 조회 (편의 함수)
+    
+    Args:
+        telegram_id: Telegram 사용자 ID
+        
+    Returns:
+        User 인스턴스 또는 None
+    """
+    async with get_async_session() as session:
+        return await _user_repository.get_user_by_telegram_id(session, telegram_id)

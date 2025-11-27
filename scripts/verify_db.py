@@ -7,7 +7,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from sqlalchemy import text
 from core.database import get_engine, Base
-from core.config import load_config
+from core.config import get_settings
 # Import all models to ensure they are registered with Base
 from models.user_model import User
 from models.persona_model import Persona
@@ -19,10 +19,10 @@ async def verify_database():
     print("🔍 Verifying database connection...")
     
     try:
-        config = load_config()
-        db_config = config["database"]
-        print(f"   Configured Host: {db_config.get('host')}:{db_config.get('port')}")
-        print(f"   Configured Database: {db_config.get('database')}")
+        settings = get_settings()
+        db_config = settings.database
+        print(f"   Configured Host: {db_config.host}:{db_config.port}")
+        print(f"   Configured Database: {db_config.name}")
         
         engine = get_engine()
         

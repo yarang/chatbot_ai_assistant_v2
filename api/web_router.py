@@ -1,32 +1,29 @@
-from fastapi import APIRouter, Request, Response, Depends, HTTPException, status
+from fastapi import APIRouter, Request, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from core.config import load_config
+from core.config import get_settings
+from core.security import get_current_user, check_telegram_authorization, create_session_token
 from repository.chat_room_repository import get_chat_room_by_telegram_id
 from repository.conversation_repository import get_history
-import hashlib
-import hmac
-import time
-import json
-from itsdangerous import URLSafeTimedSerializer
+from repository.persona_repository import get_user_personas, get_persona_by_id
+from repository.user_repository import get_user_by_telegram_id
+from core.database import get_async_session
+from repository.stats_repository import get_system_stats
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
-config = load_config()
 
-# Secret key for session signing (should be in config/env, using bot token as fallback or random)
-SECRET_KEY = config["telegram"]["bot_token"] or "temporary_secret_key"
-serializer = URLSafeTimedSerializer(SECRET_KEY)
+settings = get_settings()
 
-def get_current_user(request: Request):
-    session = request.cookies.get("session")
-    if not session:
-        return None
-    try:
-        data = serializer.loads(session, max_age=86400) # 1 day
-        return data
-    except Exception:
-        return None
+def get_template_context(request: Request, user_data: dict, extra: dict = None) -> dict:
+    context = {
+        "request": request,
+        "user": user_data,
+        "is_admin": int(user_data["id"]) in settings.admin_ids
+    }
+    if extra:
+        context.update(extra)
+    return context
 
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request):
@@ -39,8 +36,8 @@ async def index(request: Request):
 async def login(request: Request):
     # NOTE: You must replace 'YOUR_BOT_USERNAME' with your actual bot username (without @)
     # You can also add it to config.json and load it here.
-    bot_username = "YOUR_BOT_USERNAME" 
-    return templates.TemplateResponse("login.html", {"request": request, "bot_username": bot_username})
+    bot_username = settings.telegram.bot_username or "YOUR_BOT_USERNAME" 
+    return templates.TemplateResponse(request, "login.html", {"bot_username": bot_username})
 
 @router.get("/auth/telegram/callback")
 async def telegram_callback(request: Request):
@@ -48,7 +45,14 @@ async def telegram_callback(request: Request):
     if not params:
          return RedirectResponse(url="/login")
          
-    bot_token = config["telegram"]["bot_token"]
+    # Admin Check
+    # In a real app, we would check the session user.
+    # For now, we assume local dev or basic auth (not implemented here).
+    # Let's just check if we have admin IDs configured.
+    if not settings.admin_ids:
+        return HTMLResponse("Admin not configured", status_code=403)
+        
+    bot_token = settings.telegram.bot_token
     if not bot_token:
         return HTMLResponse("Bot token not configured", status_code=500)
         
@@ -64,7 +68,7 @@ async def telegram_callback(request: Request):
     }
     
     response = RedirectResponse(url="/dashboard", status_code=302)
-    token = serializer.dumps(user_data)
+    token = create_session_token(user_data)
     response.set_cookie("session", token, httponly=True, max_age=86400)
     return response
 
@@ -83,11 +87,7 @@ async def dashboard(request: Request):
     if chat_room:
         history = await get_history(chat_room.id, limit=50)
         
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request, 
-        "user": user_data, 
-        "history": history
-    })
+    return templates.TemplateResponse(request, "dashboard.html", get_template_context(request, user_data, {"history": history}))
 
 @router.get("/logout")
 async def logout():
@@ -95,19 +95,65 @@ async def logout():
     response.delete_cookie("session")
     return response
 
-def check_telegram_authorization(auth_data, bot_token):
-    check_hash = auth_data.get('hash')
-    if not check_hash:
-        return False
-    auth_data_copy = auth_data.copy()
-    del auth_data_copy['hash']
+@router.get("/personas", response_class=HTMLResponse)
+async def list_personas(request: Request):
+    user_data = get_current_user(request)
+    if not user_data:
+        return RedirectResponse(url="/login")
     
-    data_check_string = '\n'.join(sorted([f"{k}={v}" for k, v in auth_data_copy.items()]))
-    secret_key = hashlib.sha256(bot_token.encode()).digest()
-    hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+    from repository.persona_repository import get_user_personas
+    from repository.user_repository import get_user_by_telegram_id
+    from core.database import get_async_session
     
-    if hash != check_hash:
-        return False
-    if time.time() - int(auth_data['auth_date']) > 86400:
-        return False
-    return True
+    async with get_async_session() as session:
+        db_user = await get_user_by_telegram_id(session, int(user_data["id"]))
+        personas = []
+        if db_user:
+            personas = await get_user_personas(session, db_user.id, include_public=True)
+            
+    return templates.TemplateResponse(request, "personas.html", get_template_context(request, user_data, {"personas": personas}))
+
+@router.get("/personas/new", response_class=HTMLResponse)
+async def new_persona(request: Request):
+    user_data = get_current_user(request)
+    if not user_data:
+        return RedirectResponse(url="/login")
+        
+    return templates.TemplateResponse(request, "persona_edit.html", get_template_context(request, user_data, {"persona": None}))
+
+@router.get("/personas/{persona_id}/edit", response_class=HTMLResponse)
+async def edit_persona(request: Request, persona_id: str):
+    user_data = get_current_user(request)
+    if not user_data:
+        return RedirectResponse(url="/login")
+        
+    from repository.persona_repository import get_persona_by_id
+    from repository.user_repository import get_user_by_telegram_id
+    from core.database import get_async_session
+    
+    async with get_async_session() as session:
+        db_user = await get_user_by_telegram_id(session, int(user_data["id"]))
+        persona = None
+        if db_user:
+            persona = await get_persona_by_id(session, persona_id, user_id=db_user.id)
+            
+    if not persona:
+        raise HTTPException(status_code=404, detail="Persona not found")
+        
+    return templates.TemplateResponse(request, "persona_edit.html", get_template_context(request, user_data, {"persona": persona}))
+
+@router.get("/admin", response_class=HTMLResponse)
+async def admin_dashboard(request: Request):
+    user_data = get_current_user(request)
+    if not user_data:
+        return RedirectResponse(url="/login")
+        
+    # Check if user is admin
+    user_id = int(user_data["id"])
+    if user_id not in settings.admin_ids:
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    from repository.stats_repository import get_system_stats
+    stats = await get_system_stats()
+    
+    return templates.TemplateResponse(request, "admin_dashboard.html", get_template_context(request, user_data, {"stats": stats}))

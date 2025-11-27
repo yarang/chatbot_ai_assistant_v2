@@ -1,11 +1,13 @@
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from core.config import load_config
+from fastapi.staticfiles import StaticFiles
+from core.config import get_settings
 from core.logger import configure_logging
 from core.middleware import add_middlewares
 from core.exceptions import install_exception_handlers
-from api import router
-from core.database import get_engine
+from api import router as api_router
+from core.database import get_engine, init_db
 
 # Routers (will be implemented in api/)
 from api.telegram_router import router as telegram_router
@@ -17,31 +19,66 @@ from api.web_router import router as web_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    # await get_engine().connect() # connect() is not needed for async engine usually, but if we want to test connection:
-    # engine = get_engine()
-    # async with engine.begin() as conn:
-    #     pass
-    pass
+    # Initialize database
+    await init_db()
+    
+    # Log configuration (safe)
+    settings = get_settings()
+    logger = logging.getLogger(__name__)
+    logger.info(f"Starting application with log level: {settings.log_level}")
+    
+    # Set up Telegram webhook if configured
+    if settings.telegram.bot_token and settings.telegram.webhook_url:
+        try:
+            import httpx
+            bot_token = settings.telegram.bot_token
+            webhook_url = settings.telegram.webhook_url
+            
+            logger.info(f"Setting Telegram webhook to: {webhook_url}")
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"https://api.telegram.org/bot{bot_token}/setWebhook",
+                    json={"url": webhook_url}
+                )
+                result = response.json()
+                
+                if result.get("ok"):
+                    logger.info("✅ Telegram webhook set successfully")
+                else:
+                    logger.error(f"❌ Failed to set webhook: {result.get('description')}")
+        except Exception as e:
+            logger.error(f"Error setting Telegram webhook: {e}")
+    elif settings.telegram.bot_token:
+        logger.warning("⚠️  TELEGRAM_WEBHOOK_URL not configured - webhook not set")
+    
     yield
     # Shutdown (필요시 정리 작업 추가)
 
 
 def create_app() -> FastAPI:
-    config = load_config()
-    configure_logging(config["log_level"])  # Set log level early
+    settings = get_settings()
+    configure_logging(settings.log_level)
 
-    app = FastAPI(title=config["app_name"], lifespan=lifespan)  # App instance
+    app = FastAPI(title="Chatbot AI Assistant", lifespan=lifespan, version="2.0.0")
+
+    # Mount static files
+    app.mount("/static", StaticFiles(directory="static"), name="static")
 
     add_middlewares(app)
     install_exception_handlers(app)
 
+    # Include routers
     app.include_router(
-        router,
+        api_router,
         prefix="/api",
         tags=["api"],
     )
     
     app.include_router(web_router)
+    app.include_router(telegram_router)
+    app.include_router(qa_router)
+    app.include_router(persona_router)
 
     return app
 

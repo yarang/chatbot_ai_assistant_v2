@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS chat_rooms (
     type VARCHAR NOT NULL,
     username VARCHAR,
     persona_id UUID,
+    summary VARCHAR,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_chat_rooms_persona_id 
