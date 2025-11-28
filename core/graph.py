@@ -12,6 +12,10 @@ from repository.chat_room_repository import get_chat_room_by_id, update_chat_roo
 from repository.persona_repository import get_persona_by_id
 from tools.search_tool import get_search_tool
 from tools.retrieval_tool import get_retrieval_tool
+from tools.memory_tool import get_memory_tool
+from langchain_core.documents import Document
+from core.vector_store import get_vector_store
+from datetime import datetime
 import functools
 import operator
 
@@ -51,7 +55,8 @@ async def supervisor_node(state: ChatState):
         " following workers: {members}. Given the following user request,"
         " respond with the worker to act next. Each worker will perform a"
         " task and respond with their results and status. When finished,"
-        " respond with FINISH."
+        " respond with FINISH.\n"
+        f"Current Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     )
     
     prompt = ChatPromptTemplate.from_messages(
@@ -126,7 +131,8 @@ async def researcher_node(state: ChatState):
     llm = get_llm(state.get("model_name"))
     search_tool = get_search_tool()
     retrieval_tool = get_retrieval_tool()
-    tools = [search_tool, retrieval_tool]
+    memory_tool = get_memory_tool()
+    tools = [search_tool, retrieval_tool, memory_tool]
     
     # Researcher agent
     prompt = ChatPromptTemplate.from_messages(
@@ -135,7 +141,8 @@ async def researcher_node(state: ChatState):
                 "system",
                 "You are a Researcher. You have access to search tools."
                 " Use them to find information requested by the user."
-                " If you have found the information, summarize it and answer the user."
+                " If you have found the information, summarize it and answer the user.\n"
+                f"Current Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             ),
             MessagesPlaceholder(variable_name="messages"),
         ]
@@ -173,7 +180,7 @@ async def general_assistant_node(state: ChatState):
     
     prompt = ChatPromptTemplate.from_messages(
         [
-            ("system", persona_content),
+            ("system", persona_content + f"\nCurrent Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"),
             MessagesPlaceholder(variable_name="messages"),
         ]
     )
@@ -246,6 +253,39 @@ async def save_conversation_node(state: ChatState):
             input_tokens=input_tokens if input_tokens > 0 else None,
             output_tokens=output_tokens if output_tokens > 0 else None
         )
+
+        # Index messages into vector store for RAG
+        try:
+            vector_store = get_vector_store(collection_name="conversation_history")
+            
+            # Index user message
+            user_doc = Document(
+                page_content=str(user_content),
+                metadata={
+                    "user_id": str(user_id),
+                    "chat_room_id": str(chat_room_id),
+                    "role": "user",
+                    "timestamp": datetime.now().isoformat()
+                }
+            )
+            
+            # Index AI message
+            ai_doc = Document(
+                page_content=str(ai_content),
+                metadata={
+                    "user_id": str(user_id),
+                    "chat_room_id": str(chat_room_id),
+                    "role": "assistant",
+                    "timestamp": datetime.now().isoformat()
+                }
+            )
+            
+            # Use run_in_executor to avoid async_mode error with GoogleGenerativeAIEmbeddings
+            # The async implementation of embeddings might be trying to use async client incorrectly
+            import asyncio
+            await asyncio.to_thread(vector_store.add_documents, [user_doc, ai_doc])
+        except Exception as e:
+            print(f"Error indexing conversation: {e}")
              
     return {}
 
@@ -306,9 +346,10 @@ async def tools_node(state: ChatState):
     # Initialize tools at runtime
     search_tool = get_search_tool()
     retrieval_tool = get_retrieval_tool()
+    memory_tool = get_memory_tool()
     
     # Create ToolNode with initialized tools
-    tool_executor = ToolNode([search_tool, retrieval_tool])
+    tool_executor = ToolNode([search_tool, retrieval_tool, memory_tool])
     
     # Execute the tools
     return await tool_executor.ainvoke(state)

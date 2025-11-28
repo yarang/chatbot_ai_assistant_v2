@@ -10,7 +10,9 @@ async def test_process_update_selective_response():
     with patch("api.telegram_router.bot") as mock_bot, \
          patch("api.telegram_router.upsert_user", new_callable=AsyncMock) as mock_upsert_user, \
          patch("api.telegram_router.upsert_chat_room", new_callable=AsyncMock) as mock_upsert_chat_room, \
-         patch("api.telegram_router.graph") as mock_graph:
+         patch("api.telegram_router.graph") as mock_graph, \
+         patch("api.telegram_router.settings") as mock_settings, \
+         patch("api.telegram_router.BOT_USERNAME", None):
          
         # Setup Bot
         mock_bot_user = MagicMock(spec=User)
@@ -20,6 +22,9 @@ async def test_process_update_selective_response():
         
         # Setup Graph
         mock_graph.ainvoke = AsyncMock(return_value={"messages": [AIMessage(content="response")]})
+        
+        # Setup Settings
+        mock_settings.telegram.bot_username = None
         
         # Setup Common Update Objects
         user = MagicMock(spec=User)
@@ -227,3 +232,80 @@ async def test_process_update_selective_response():
             assert isinstance(messages[0].content, list)
             assert messages[0].content[1]["type"] == "image_url"
             assert "data:image/jpeg;base64" in messages[0].content[1]["image_url"]["url"]
+@pytest.mark.asyncio
+async def test_group_chat_case_insensitive_mentions():
+    """
+    Test that bot responds to mentions and replies in group chats 
+    even if the casing of the username doesn't match exactly.
+    """
+    # Mock dependencies
+    with patch("api.telegram_router.bot") as mock_bot, \
+         patch("api.telegram_router.upsert_user", new_callable=AsyncMock) as mock_upsert_user, \
+         patch("api.telegram_router.upsert_chat_room", new_callable=AsyncMock) as mock_upsert_chat_room, \
+         patch("api.telegram_router.graph") as mock_graph, \
+         patch("api.telegram_router.settings") as mock_settings, \
+         patch("api.telegram_router.BOT_USERNAME", None):
+         
+        # Setup Bot Username with mixed case
+        mock_settings.telegram.bot_username = "MyBot"
+        
+        # Setup Common Update Objects
+        user = MagicMock(spec=User)
+        user.id = 123
+        user.username = "test_user"
+        user.first_name = "Test"
+        user.last_name = "User"
+        
+        chat_group = MagicMock(spec=Chat)
+        chat_group.type = "group"
+        chat_group.id = 2001
+        chat_group.title = "Test Group"
+        chat_group.username = None
+
+        # Scenario 1: Reply to Bot with casing mismatch
+        # User replies to a message from "mybot" (lowercase), but bot is "MyBot"
+        message_reply = MagicMock(spec=Message)
+        message_reply.text = "replying to you"
+        message_reply.photo = None
+        message_reply.entities = None
+        
+        reply_to_user = MagicMock()
+        reply_to_user.username = "mybot" # Lowercase from Telegram
+        
+        reply_to = MagicMock(spec=Message)
+        reply_to.from_user = reply_to_user
+        message_reply.reply_to_message = reply_to
+        
+        update_reply = MagicMock(spec=Update)
+        update_reply.effective_user = user
+        update_reply.effective_chat = chat_group
+        update_reply.message = message_reply
+        
+        await process_update(update_reply)
+        
+        assert mock_upsert_user.called, "Reply with casing mismatch was ignored"
+        mock_upsert_user.reset_mock()
+        
+        # Scenario 2: Text Mention with casing mismatch
+        message_entity = MagicMock(spec=Message)
+        message_entity.text = "hey bot"
+        message_entity.reply_to_message = None
+        message_entity.photo = None
+        
+        entity_user = MagicMock()
+        entity_user.username = "mybot" # Lowercase
+        
+        entity = MagicMock()
+        entity.type = "text_mention"
+        entity.user = entity_user
+        
+        message_entity.entities = [entity]
+        
+        update_entity = MagicMock(spec=Update)
+        update_entity.effective_user = user
+        update_entity.effective_chat = chat_group
+        update_entity.message = message_entity
+        
+        await process_update(update_entity)
+        
+        assert mock_upsert_user.called, "Text Mention with casing mismatch was ignored"

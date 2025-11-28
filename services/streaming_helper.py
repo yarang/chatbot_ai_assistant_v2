@@ -89,6 +89,13 @@ def extract_text_from_stream_event(event: dict) -> Optional[str]:
                     
                     # Return text content
                     if last_msg.content:
+                        if isinstance(last_msg.content, list):
+                            # Handle multimodal content (list of dicts)
+                            text_parts = []
+                            for item in last_msg.content:
+                                if isinstance(item, dict) and item.get("type") == "text":
+                                    text_parts.append(item.get("text", ""))
+                            return "".join(text_parts)
                         return str(last_msg.content)
                 
                 # Skip ToolMessage (internal tool results)

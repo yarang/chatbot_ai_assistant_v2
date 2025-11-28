@@ -87,7 +87,7 @@ async def process_update(update: Update):
                             break
                     elif entity.type == "text_mention":
                         # Check if it mentions the bot user
-                        if BOT_USERNAME and entity.user and entity.user.username == BOT_USERNAME:
+                        if BOT_USERNAME and entity.user and entity.user.username and entity.user.username.lower() == BOT_USERNAME.lower():
                             is_mentioned = True
                             logger.info(f"Bot mentioned via text_mention in group chat")
                             break
@@ -103,7 +103,7 @@ async def process_update(update: Update):
                 # bot.get_me() returns User object which has ID.
                 # We can cache BOT_ID as well if needed, but let's assume we can check username or ID.
                 # If we have BOT_USERNAME, we can check if reply user is us.
-                if BOT_USERNAME and message.reply_to_message.from_user.username == BOT_USERNAME:
+                if BOT_USERNAME and message.reply_to_message.from_user.username and message.reply_to_message.from_user.username.lower() == BOT_USERNAME.lower():
                     is_reply_to_bot = True
                     logger.info(f"Message is a reply to bot in group chat")
                     
