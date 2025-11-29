@@ -307,7 +307,13 @@ Hello! I am your AI assistant. You can use the following commands:
                 chat_room_id=str(db_chat_room.id),
                 question=text
             ):
-                full_response += chunk
+                # Smart update logic to handle both deltas and snapshots
+                if chunk.startswith(full_response) and len(chunk) >= len(full_response):
+                    # It's a snapshot (extended version of previous)
+                    full_response = chunk
+                else:
+                    # It's a delta (or a new independent chunk)
+                    full_response += chunk
                 chunk_count += 1
                 
                 # Rate limit message updates
