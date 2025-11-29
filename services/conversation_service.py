@@ -79,7 +79,7 @@ async def ask_question_stream(
         
         # Stream from graph
         buffer = StreamBuffer(time_threshold_sec=0.5, char_threshold=50)
-        stream = graph.astream(initial_state)
+        stream = graph.astream(initial_state, stream_mode="updates")
         
         async for chunk in stream_with_buffer(stream, buffer):
             yield chunk

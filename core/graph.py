@@ -13,6 +13,7 @@ from repository.persona_repository import get_persona_by_id
 from tools.search_tool import get_search_tool
 from tools.retrieval_tool import get_retrieval_tool
 from tools.memory_tool import get_memory_tool
+from tools.time_tool import get_time_tool
 from langchain_core.documents import Document
 from core.vector_store import get_vector_store
 from datetime import datetime
@@ -132,14 +133,17 @@ async def researcher_node(state: ChatState):
     search_tool = get_search_tool()
     retrieval_tool = get_retrieval_tool()
     memory_tool = get_memory_tool()
-    tools = [search_tool, retrieval_tool, memory_tool]
+    retrieval_tool = get_retrieval_tool()
+    memory_tool = get_memory_tool()
+    time_tool = get_time_tool()
+    tools = [search_tool, retrieval_tool, memory_tool, time_tool]
     
     # Researcher agent
     prompt = ChatPromptTemplate.from_messages(
         [
             (
                 "system",
-                "You are a Researcher. You have access to search tools."
+                "You are a Researcher. You have access to search tools and a time tool."
                 " Use them to find information requested by the user."
                 " If you have found the information, summarize it and answer the user.\n"
                 f"Current Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
@@ -346,10 +350,12 @@ async def tools_node(state: ChatState):
     # Initialize tools at runtime
     search_tool = get_search_tool()
     retrieval_tool = get_retrieval_tool()
+    retrieval_tool = get_retrieval_tool()
     memory_tool = get_memory_tool()
+    time_tool = get_time_tool()
     
     # Create ToolNode with initialized tools
-    tool_executor = ToolNode([search_tool, retrieval_tool, memory_tool])
+    tool_executor = ToolNode([search_tool, retrieval_tool, memory_tool, time_tool])
     
     # Execute the tools
     return await tool_executor.ainvoke(state)

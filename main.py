@@ -52,6 +52,10 @@ async def lifespan(app: FastAPI):
     elif settings.telegram.bot_token:
         logger.warning("⚠️  TELEGRAM_WEBHOOK_URL not configured - webhook not set")
     
+    if settings.telegram.webhook_url and "ngrok" in settings.telegram.webhook_url:
+        logger.warning("⚠️  Using ngrok? Ensure your BotFather 'Domain' setting matches: " + settings.telegram.webhook_url)
+
+    
     yield
     # Shutdown (필요시 정리 작업 추가)
 
