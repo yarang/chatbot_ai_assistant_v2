@@ -24,6 +24,7 @@ dependencies = [
     "tavily-python>=0.7.13",
     "langchain-tavily>=0.0.2",
     "uvicorn>=0.38.0",
+    "python-multipart>=0.0.20",
 ]
 
 [project.optional-dependencies]

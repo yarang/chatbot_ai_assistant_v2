@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Request, BackgroundTasks
+import asyncio
 from telegram import Update, Bot
 from core.config import get_settings
 from core.graph import graph
@@ -287,7 +288,10 @@ Hello! I am your AI assistant. You can use the following commands:
                 
             except Exception as e:
                 print(f"Error processing message: {e}")
-                await bot.send_message(chat_id=chat.id, text="Sorry, I encountered an error.")
+                if "429" in str(e) or "ResourceExhausted" in str(e):
+                     await bot.send_message(chat_id=chat.id, text="죄송합니다. API 사용량을 초과했습니다. 나중에 다시 시도해 주세요.")
+                else:
+                     await bot.send_message(chat_id=chat.id, text="Sorry, I encountered an error.")
             return
         
         # Streaming response for text-only messages
@@ -301,6 +305,11 @@ Hello! I am your AI assistant. You can use the following commands:
             last_update_time = 0
             update_interval = 0.5  # Seconds between updates
             chunk_count = 0
+            
+            # List of sent messages to handle pagination
+            sent_messages = [sent_msg]
+            sent_texts = {sent_msg.message_id: "..."}
+            MESSAGE_LIMIT = 4000 # Telegram limit is 4096, keep buffer
             
             async for chunk in ask_question_stream(
                 user_id=str(db_user.id),
@@ -321,25 +330,93 @@ Hello! I am your AI assistant. You can use the following commands:
                 current_time = time.time()
                 if current_time - last_update_time >= update_interval:
                     try:
-                        await bot.edit_message_text(
-                            chat_id=chat.id,
-                            message_id=sent_msg.message_id,
-                            text=full_response + "..."
-                        )
+                        # Calculate how many messages we need
+                        num_needed = (len(full_response) // MESSAGE_LIMIT) + 1
+                        
+                        # If we need more messages than we have
+                        if num_needed > len(sent_messages):
+                            # First, finalize the current last message (fill it up and remove "...")
+                            prev_last_msg = sent_messages[-1]
+                            prev_last_idx = len(sent_messages) - 1
+                            prev_text = full_response[prev_last_idx * MESSAGE_LIMIT : (prev_last_idx + 1) * MESSAGE_LIMIT]
+                            
+                            if sent_texts.get(prev_last_msg.message_id) != prev_text:
+                                try:
+                                    await bot.edit_message_text(
+                                        chat_id=chat.id,
+                                        message_id=prev_last_msg.message_id,
+                                        text=prev_text
+                                    )
+                                    sent_texts[prev_last_msg.message_id] = prev_text
+                                except Exception as e:
+                                    logger.debug(f"Error finalizing previous message: {e}")
+                            
+                            # Add new messages
+                            while len(sent_messages) < num_needed:
+                                new_msg = await bot.send_message(chat_id=chat.id, text="...")
+                                sent_messages.append(new_msg)
+                                sent_texts[new_msg.message_id] = "..."
+                        
+                        # Now update the (possibly new) last message
+                        last_msg_index = len(sent_messages) - 1
+                        start_idx = last_msg_index * MESSAGE_LIMIT
+                        current_chunk_text = full_response[start_idx:]
+                        new_text = current_chunk_text + "..."
+                        
+                        if sent_texts.get(sent_messages[-1].message_id) != new_text:
+                            await bot.edit_message_text(
+                                chat_id=chat.id,
+                                message_id=sent_messages[-1].message_id,
+                                text=new_text
+                            )
+                            sent_texts[sent_messages[-1].message_id] = new_text
                         last_update_time = current_time
                     except Exception as e:
                         # Ignore edit errors (message might be the same, or rate limited)
-                        logger.debug(f"Edit message error: {e}")
+                        if "429" in str(e) or "Too Many Requests" in str(e):
+                             logger.warning(f"Rate limit hit during edit: {e}")
+                             # Backoff slightly
+                             await asyncio.sleep(2)
+                        else:
+                             logger.debug(f"Edit message error: {e}")
             
             logger.info(f"Streaming complete: received {chunk_count} chunks, total length={len(full_response)}")
             
-            # Final update without "..."
+            # Safety check: If response is too huge, truncate or warn
+            if len(sent_messages) > 20:
+                 logger.warning(f"Too many messages generated ({len(sent_messages)}). Stopping updates.")
+                 await bot.send_message(chat_id=chat.id, text="[Response truncated due to length limit]")
+                 return
+            
+            # Final update
             try:
-                await bot.edit_message_text(
-                    chat_id=chat.id,
-                    message_id=sent_msg.message_id,
-                    text=full_response if full_response else "I didn't get a response."
-                )
+                # Ensure we have enough messages for the final text
+                num_needed = (len(full_response) // MESSAGE_LIMIT) + 1
+                while len(sent_messages) < num_needed:
+                    new_msg = await bot.send_message(chat_id=chat.id, text="...")
+                    sent_messages.append(new_msg)
+                    sent_texts[new_msg.message_id] = "..."
+                
+                # Update all messages to ensure they are clean (no "...")
+                for i, msg in enumerate(sent_messages):
+                    start_idx = i * MESSAGE_LIMIT
+                    end_idx = (i + 1) * MESSAGE_LIMIT
+                    text_chunk = full_response[start_idx:end_idx]
+                    
+                    # Only update if it's the last one OR if we want to remove "..." from previous ones
+                    # To be safe and clean, update all.
+                    
+                    final_text = text_chunk
+                    if i == len(sent_messages) - 1 and not final_text:
+                         final_text = "I didn't get a response."
+
+                    if sent_texts.get(msg.message_id) != final_text:
+                        await bot.edit_message_text(
+                            chat_id=chat.id,
+                            message_id=msg.message_id,
+                            text=final_text
+                        )
+                        sent_texts[msg.message_id] = final_text
                 logger.debug(f"Final message edit successful")
             except Exception as e:
                 logger.error(f"Final edit error: {e}")

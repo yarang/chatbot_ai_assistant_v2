@@ -55,8 +55,9 @@ async def supervisor_node(state: ChatState):
         "You are a supervisor tasked with managing a conversation between the"
         " following workers: {members}. Given the following user request,"
         " respond with the worker to act next. Each worker will perform a"
-        " task and respond with their results and status. When finished,"
-        " respond with FINISH.\n"
+        " task and respond with their results and status.\n"
+        "IMPORTANT: If the user's request has been addressed or if the conversation seems to be looping, respond with FINISH.\n"
+        "Do not repeatedly call the same worker if they are not making progress.\n"
         f"Current Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     )
     
@@ -118,11 +119,26 @@ async def supervisor_node(state: ChatState):
     
     try:
         result = await supervisor_chain.ainvoke({"messages": messages})
+        next_step = result["next"]
         
-        # Extract token usage from the last message if available
-        # Note: supervisor_chain uses JsonOutputFunctionsParser, so we need to track tokens differently
-        # For now, we'll skip supervisor token tracking as it's mainly for routing
-        return {"next": result["next"]}
+        # Loop Detection Logic
+        # Check if the last few AI messages are identical, indicating a loop
+        last_messages = state["messages"][-10:]
+        ai_messages = [m.content for m in last_messages if isinstance(m, AIMessage)]
+        
+        if len(ai_messages) >= 3:
+            # Check if the last 3 AI messages are identical
+            if ai_messages[-1] == ai_messages[-2] == ai_messages[-3]:
+                print("Loop detected: Last 3 AI messages are identical. Forcing FINISH.")
+                return {"next": "FINISH"}
+                
+            # Check for alternating loop (A -> B -> A -> B)
+            if len(ai_messages) >= 4:
+                if ai_messages[-1] == ai_messages[-3] and ai_messages[-2] == ai_messages[-4]:
+                     print("Loop detected: Alternating messages detected. Forcing FINISH.")
+                     return {"next": "FINISH"}
+
+        return {"next": next_step}
     except Exception as e:
         # Fallback if supervisor fails
         print(f"Supervisor failed: {e}")
@@ -131,8 +147,6 @@ async def supervisor_node(state: ChatState):
 async def researcher_node(state: ChatState):
     llm = get_llm(state.get("model_name"))
     search_tool = get_search_tool()
-    retrieval_tool = get_retrieval_tool()
-    memory_tool = get_memory_tool()
     retrieval_tool = get_retrieval_tool()
     memory_tool = get_memory_tool()
     time_tool = get_time_tool()
@@ -146,6 +160,7 @@ async def researcher_node(state: ChatState):
                 "You are a Researcher. You have access to search tools and a time tool."
                 " Use them to find information requested by the user."
                 " If you have found the information, summarize it and answer the user.\n"
+                "IMPORTANT: Do not simulate the user. Do not generate 'User:' or 'Human:' dialogue.\n"
                 f"Current Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             ),
             MessagesPlaceholder(variable_name="messages"),
@@ -154,12 +169,21 @@ async def researcher_node(state: ChatState):
     
     chain = prompt | llm.bind_tools(tools)
     
-    # Construct messages similar to supervisor but maybe less history?
-    # For now, reuse the same message construction logic or pass state["messages"]
-    # But state["messages"] only has current turn.
-    # We should probably inject history into state["messages"] at the beginning of the graph?
-    # Or just reconstruct here.
-    messages = state["messages"]
+    # Construct messages including history and summary
+    messages = []
+    if state.get("summary"):
+        messages.append(SystemMessage(content=f"Previous conversation summary: {state['summary']}"))
+        
+    # Fetch recent history
+    chat_room_id = state["chat_room_id"]
+    history_tuples = await get_history(chat_room_id, limit=10)
+    for role, content in history_tuples:
+        if role == "user":
+            messages.append(HumanMessage(content=content))
+        else:
+            messages.append(AIMessage(content=content))
+            
+    messages.extend(state["messages"])
     
     response = await chain.ainvoke({"messages": messages})
     
@@ -184,7 +208,7 @@ async def general_assistant_node(state: ChatState):
     
     prompt = ChatPromptTemplate.from_messages(
         [
-            ("system", persona_content + f"\nCurrent Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"),
+            ("system", persona_content + f"\nIMPORTANT: Do not simulate the user. Do not generate 'User:' or 'Human:' dialogue.\nCurrent Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"),
             MessagesPlaceholder(variable_name="messages"),
         ]
     )
@@ -323,19 +347,25 @@ async def summarize_conversation_node(state: ChatState):
         Update the summary to include the new information.
         """
         
-        response = await llm.ainvoke([HumanMessage(content=prompt)])
-        new_summary = response.content
-        
-        # Track token usage for logging purposes (not saved to conversation)
-        if hasattr(response, 'usage_metadata') and response.usage_metadata:
-            from core.logger import get_logger
-            logger = get_logger(__name__)
-            logger.info(f"Summary generation used {response.usage_metadata.get('input_tokens', 0)} input tokens and {response.usage_metadata.get('output_tokens', 0)} output tokens")
-        
-        # Update DB
-        await update_chat_room_summary(chat_room_id, new_summary)
-        
-        return {"summary": new_summary}
+        try:
+            response = await llm.ainvoke([HumanMessage(content=prompt)])
+            new_summary = response.content
+            
+            # Track token usage for logging purposes (not saved to conversation)
+            if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                from core.logger import get_logger
+                logger = get_logger(__name__)
+                logger.info(f"Summary generation used {response.usage_metadata.get('input_tokens', 0)} input tokens and {response.usage_metadata.get('output_tokens', 0)} output tokens")
+            
+            # Update DB
+            await update_chat_room_summary(chat_room_id, new_summary)
+            
+            return {"summary": new_summary}
+        except Exception as e:
+            if "429" in str(e) or "ResourceExhausted" in str(e):
+                print(f"Skipping summary generation due to rate limit: {e}")
+                return {}
+            raise e
         
     return {}
 

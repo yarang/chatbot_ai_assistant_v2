@@ -8,26 +8,26 @@
         {% if persona %}Edit Persona{% else %}Create New Persona{% endif %}
     </h1>
 
-    <form id="personaForm" class="card">
+    <form id="personaForm" class="card" method="POST" action="{% if persona %}/personas/{{ persona.id }}{% else %}/personas{% endif %}">
         <div class="form-group">
             <label for="name">Name</label>
-            <input id="name" type="text" placeholder="Persona Name" value="{{ persona.name if persona else '' }}" required>
+            <input id="name" name="name" type="text" placeholder="Persona Name" value="{{ persona.name if persona else '' }}" required>
         </div>
         
         <div class="form-group">
             <label for="description">Description</label>
-            <input id="description" type="text" placeholder="Short description" value="{{ persona.description if persona else '' }}">
+            <input id="description" name="description" type="text" placeholder="Short description" value="{{ persona.description if persona else '' }}">
         </div>
 
         <div class="form-group">
             <label for="content">System Prompt (Content)</label>
-            <textarea id="content" placeholder="You are a helpful assistant..." rows="6" required>{{ persona.content if persona else '' }}</textarea>
+            <textarea id="content" name="content" placeholder="You are a helpful assistant..." rows="6" required>{{ persona.content if persona else '' }}</textarea>
             <p style="color: var(--text-muted); font-size: 0.75rem; margin-top: 0.25rem;">Define how the AI should behave.</p>
         </div>
 
         <div class="form-group">
             <label style="display: flex; align-items: center; cursor: pointer;">
-                <input type="checkbox" id="is_public" style="width: auto; margin-right: 0.5rem;" 
+                <input type="checkbox" id="is_public" name="is_public" value="true" style="width: auto; margin-right: 0.5rem;" 
                        {% if persona and persona.is_public %}checked{% endif %}>
                 <span>Make Public</span>
             </label>
@@ -41,41 +41,4 @@
         </div>
     </form>
 </div>
-
-<script>
-document.getElementById('personaForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const data = {
-        name: document.getElementById('name').value,
-        description: document.getElementById('description').value,
-        content: document.getElementById('content').value,
-        is_public: document.getElementById('is_public').checked
-    };
-
-    const personaId = '{{ persona.id if persona else "" }}';
-    const url = personaId ? `/api/persona/${personaId}` : '/api/persona/';
-    const method = personaId ? 'PUT' : 'POST';
-
-    try {
-        const response = await fetch(url, {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data)
-        });
-
-        if (response.ok) {
-            window.location.href = '/personas';
-        } else {
-            const error = await response.json();
-            alert('Error: ' + (error.detail || 'Failed to save persona'));
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('An error occurred');
-    }
-});
-</script>
 {% endblock %}

@@ -24,37 +24,18 @@
         </p>
         <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
             <a href="/personas/{{ persona.id }}/edit" class="btn" style="color: var(--primary-color);">Edit</a>
-            <button onclick="deletePersona('{{ persona.id }}')" class="btn btn-danger">Delete</button>
+            <form method="POST" action="/personas/{{ persona.id }}/delete" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this persona?');">
+                <button type="submit" class="btn btn-danger">Delete</button>
+            </form>
         </div>
     </div>
     {% endfor %}
 </div>
 
 {% if not personas %}
-<div style="text-center; padding: 3rem 0;">
+<div style="text-align: center; padding: 3rem 0;">
     <p style="color: var(--text-muted); font-size: 1.125rem;">You haven't created any personas yet.</p>
     <a href="/personas/new" style="color: var(--primary-color); margin-top: 0.5rem; display: inline-block;">Create your first persona</a>
 </div>
 {% endif %}
-
-<script>
-async function deletePersona(id) {
-    if (!confirm('Are you sure you want to delete this persona?')) return;
-    
-    try {
-        const response = await fetch(`/api/persona/${id}`, {
-            method: 'DELETE'
-        });
-        
-        if (response.ok) {
-            window.location.reload();
-        } else {
-            alert('Failed to delete persona');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('An error occurred');
-    }
-}
-</script>
 {% endblock %}

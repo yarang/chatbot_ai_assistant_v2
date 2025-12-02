@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends, HTTPException, status
+from fastapi import APIRouter, Request, Depends, HTTPException, status, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from core.config import get_settings
@@ -103,13 +103,12 @@ async def list_personas(request: Request):
     
     from repository.persona_repository import get_user_personas
     from repository.user_repository import get_user_by_telegram_id
-    from core.database import get_async_session
+
     
-    async with get_async_session() as session:
-        db_user = await get_user_by_telegram_id(session, int(user_data["id"]))
-        personas = []
-        if db_user:
-            personas = await get_user_personas(session, db_user.id, include_public=True)
+    db_user = await get_user_by_telegram_id(int(user_data["id"]))
+    personas = []
+    if db_user:
+        personas = await get_user_personas(db_user.id, include_public=True)
             
     return templates.TemplateResponse(request, "personas.html", get_template_context(request, user_data, {"personas": personas}))
 
@@ -129,18 +128,87 @@ async def edit_persona(request: Request, persona_id: str):
         
     from repository.persona_repository import get_persona_by_id
     from repository.user_repository import get_user_by_telegram_id
-    from core.database import get_async_session
     
-    async with get_async_session() as session:
-        db_user = await get_user_by_telegram_id(session, int(user_data["id"]))
-        persona = None
-        if db_user:
-            persona = await get_persona_by_id(session, persona_id, user_id=db_user.id)
+    db_user = await get_user_by_telegram_id(int(user_data["id"]))
+    persona = None
+    if db_user:
+        persona = await get_persona_by_id(persona_id, user_id=db_user.id)
             
     if not persona:
         raise HTTPException(status_code=404, detail="Persona not found")
         
     return templates.TemplateResponse(request, "persona_edit.html", get_template_context(request, user_data, {"persona": persona}))
+
+@router.post("/personas", response_class=HTMLResponse)
+async def create_persona_web(
+    request: Request,
+    name: str = Form(...),
+    content: str = Form(...),
+    description: str = Form(None),
+    is_public: bool = Form(False)
+):
+    user_data = get_current_user(request)
+    if not user_data:
+        return RedirectResponse(url="/login", status_code=302)
+        
+    from repository.persona_repository import create_persona
+    from repository.user_repository import get_user_by_telegram_id
+    
+    db_user = await get_user_by_telegram_id(int(user_data["id"]))
+    if db_user:
+        await create_persona(
+            user_id=db_user.id,
+            name=name,
+            content=content,
+            description=description,
+            is_public=is_public
+        )
+    
+    return RedirectResponse(url="/personas", status_code=302)
+
+@router.post("/personas/{persona_id}", response_class=HTMLResponse)
+async def update_persona_web(
+    request: Request,
+    persona_id: str,
+    name: str = Form(...),
+    content: str = Form(...),
+    description: str = Form(None),
+    is_public: bool = Form(False)
+):
+    user_data = get_current_user(request)
+    if not user_data:
+        return RedirectResponse(url="/login", status_code=302)
+        
+    from repository.persona_repository import update_persona
+    from repository.user_repository import get_user_by_telegram_id
+    
+    db_user = await get_user_by_telegram_id(int(user_data["id"]))
+    if db_user:
+        await update_persona(
+            persona_id=persona_id,
+            user_id=db_user.id,
+            name=name,
+            content=content,
+            description=description,
+            is_public=is_public
+        )
+        
+    return RedirectResponse(url="/personas", status_code=302)
+
+@router.post("/personas/{persona_id}/delete", response_class=HTMLResponse)
+async def delete_persona_web(request: Request, persona_id: str):
+    user_data = get_current_user(request)
+    if not user_data:
+        return RedirectResponse(url="/login", status_code=302)
+        
+    from repository.persona_repository import delete_persona
+    from repository.user_repository import get_user_by_telegram_id
+    
+    db_user = await get_user_by_telegram_id(int(user_data["id"]))
+    if db_user:
+        await delete_persona(persona_id=persona_id, user_id=db_user.id)
+        
+    return RedirectResponse(url="/personas", status_code=302)
 
 @router.get("/admin", response_class=HTMLResponse)
 async def admin_dashboard(request: Request):

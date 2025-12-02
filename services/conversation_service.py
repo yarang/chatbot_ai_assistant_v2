@@ -33,7 +33,14 @@ async def ask_question(user_id: Optional[str], chat_room_id: str, question: str,
         }
         
         # Invoke Graph
-        final_state = await graph.ainvoke(initial_state)
+        config = {"recursion_limit": 20}
+        try:
+            final_state = await graph.ainvoke(initial_state, config=config)
+        except Exception as e:
+            if "429" in str(e) or "ResourceExhausted" in str(e):
+                logger.warning(f"Rate limit exceeded: {e}")
+                return "죄송합니다. API 사용량을 초과했습니다. 나중에 다시 시도해 주세요."
+            raise e
         
         # Extract Response
         messages = final_state["messages"]
@@ -79,10 +86,22 @@ async def ask_question_stream(
         
         # Stream from graph
         buffer = StreamBuffer(time_threshold_sec=0.5, char_threshold=50)
-        stream = graph.astream(initial_state, stream_mode="updates")
+        # Stream from graph
+
+        config = {"recursion_limit": 20}
         
-        async for chunk in stream_with_buffer(stream, buffer):
-            yield chunk
+        try:
+            stream = graph.astream(initial_state, config=config, stream_mode="updates")
+            
+            async for chunk in stream_with_buffer(stream, buffer):
+                yield chunk
+        except Exception as e:
+            if "429" in str(e) or "ResourceExhausted" in str(e):
+                logger.warning(f"Rate limit exceeded in stream: {e}")
+                yield "죄송합니다. API 사용량을 초과했습니다. 나중에 다시 시도해 주세요."
+            else:
+                logger.error(f"Error in stream: {e}")
+                yield "죄송합니다. 오류가 발생했습니다."
             
     except Exception as e:
         logger.error(f"Error in ask_question_stream: {e}")
