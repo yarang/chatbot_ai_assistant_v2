@@ -20,6 +20,21 @@ Google의 Generative AI 모델을 사용하기 위해 필요합니다.
 3.  봇의 이름과 유저네임을 설정하면 **Access Token**이 발급됩니다.
 4.  이 토큰을 `TELEGRAM_BOT_TOKEN`에 입력합니다.
 
+### 2.1 로컬 웹훅 설정 (Ngrok)
+
+텔레그램은 HTTPS URL로만 웹훅을 보낼 수 있습니다. 로컬 개발 환경에서는 [ngrok](https://ngrok.com/)을 사용하여 로컬 포트를 외부로 노출해야 합니다.
+
+1.  **Ngrok 설치 및 실행**:
+    ```bash
+    # 포트 8000번을 외부로 노출
+    ngrok http 8000
+    ```
+2.  **URL 복사**:
+    `Forwarding` 항목에 있는 `https://...ngrok-free.app` 형태의 주소를 복사합니다.
+3.  **환경 변수 설정**:
+    `.env` 파일의 `TELEGRAM_WEBHOOK_URL`에 복사한 주소 뒤에 `/telegram/webhook` 경로를 붙여 입력합니다.
+    예: `TELEGRAM_WEBHOOK_URL=https://1234.ngrok-free.app/telegram/webhook`
+
 ## 3. Tavily Search API 설정
 
 AI가 웹 검색을 통해 최신 정보를 얻기 위해 사용됩니다.

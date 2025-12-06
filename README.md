@@ -147,6 +147,16 @@ docker-compose up -d
 
 이 명령어는 애플리케이션과 PostgreSQL 데이터베이스를 함께 실행합니다.
 
+### 로컬 개발 시 Ngrok 사용 (필수)
+
+텔레그램 봇의 Webhook은 **HTTPS**만 지원하므로, 로컬에서 실행 중인 서버(`localhost:8000`)를 외부에서 접속 가능하게 하려면 [ngrok](https://ngrok.com/)과 같은 터널링 프로그램이 필요합니다.
+
+1. Ngrok 설치 및 실행:
+   ```bash
+   ngrok http 8000
+   ```
+2. 생성된 HTTPS URL (예: `https://abcd-123.ngrok-free.app`)을 복사회여 `.env` 파일의 `TELEGRAM_WEBHOOK_URL`에 설정합니다.
+
 ### 개별 Docker 빌드
 
 ```bash
