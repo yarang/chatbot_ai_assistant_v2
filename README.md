@@ -10,7 +10,8 @@
 - **스트리밍 응답**: 실시간으로 AI 응답을 받아볼 수 있는 스트리밍 기능
 - **토큰 추적**: 대화별 토큰 사용량 모니터링
 - **RAG (검색 증강 생성)**: 벡터 DB를 활용한 문서 검색 및 답변 생성
-- **Multi-Agent 협업**: 여러 AI 에이전트가 협력하여 작업 수행
+- **Multi-Agent 협업**: Supervisor, Researcher, GeneralAssistant, NotionSearch 등 여러 에이전트가 협력
+- **Notion 연동**: Notion 페이지 검색, 생성(Create), 수정(Update) 기능 지원
 
 ### 텔레그램 봇
 - Webhook 기반 메시지 처리
@@ -70,6 +71,8 @@ LOG_LEVEL=INFO
 GEMINI_API_KEY=your_gemini_api_key
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 TAVILY_API_KEY=your_tavily_api_key
+NOTION_API_KEY=your_notion_api_key
+NOTION_DATABASE_ID=your_notion_database_id
 
 # Database
 DATABASE_HOST=localhost
@@ -81,16 +84,8 @@ DATABASE_NAME=chatbot_db
 
 ### 3. 의존성 설치
 
-#### uv 사용 (권장)
-
 ```bash
 uv sync
-```
-
-#### pip 사용
-
-```bash
-pip install -r requirements.txt
 ```
 
 ### 4. 데이터베이스 초기화
@@ -168,6 +163,16 @@ chatbot_ai_assistant_v2/
 │   ├── qa_router.py        # QA 및 RAG API
 │   ├── telegram_router.py  # 텔레그램 webhook
 │   └── web_router.py       # 웹 UI 라우터
+│   ├── telegram_router.py  # 텔레그램 webhook
+│   └── web_router.py       # 웹 UI 라우터
+├── agent/                  # AI 에이전트 노드
+│   ├── nodes/
+│   │   ├── router_node.py  # Supervisor (라우팅)
+│   │   ├── notion_node.py  # Notion 작업
+│   │   ├── search_node.py  # 웹 검색
+│   │   └── chat_node.py    # 일반 대화
+│   ├── graph.py            # LangGraph 정의
+│   └── state.py            # 상태 정의
 ├── core/                   # 핵심 모듈
 │   ├── config.py           # 설정 관리
 │   ├── database.py         # DB 연결
@@ -289,6 +294,8 @@ python scripts/ingest_docs.py --docs-dir ./documents
 - ✅ 스트리밍 응답
 - ✅ 토큰 추적
 - ✅ RAG 시스템
+- ✅ Multi-Agent 아키텍처 (Supervisor, Researcher, NotionSearch)
+- ✅ Notion 연동 (검색, 생성, 수정)
 
 ### 진행 예정 기능
 - 🔄 웹 페르소나 관리 UI 개선

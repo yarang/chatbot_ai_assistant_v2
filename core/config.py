@@ -43,6 +43,17 @@ class GeminiSettings(BaseSettings):
     )
 
 
+class NotionSettings(BaseSettings):
+    api_key: Optional[str] = None
+    database_id: Optional[str] = None
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_prefix="NOTION_",
+        extra="ignore"
+    )
+
+
 class Settings(BaseSettings):
     log_level: str = "INFO"
     admin_ids: List[int] = []
@@ -52,6 +63,7 @@ class Settings(BaseSettings):
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     telegram: TelegramSettings = Field(default_factory=TelegramSettings)
     gemini: GeminiSettings = Field(default_factory=GeminiSettings)
+    notion: NotionSettings = Field(default_factory=NotionSettings)
 
     model_config = SettingsConfigDict(
         env_file=".env",

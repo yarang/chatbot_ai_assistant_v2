@@ -1,7 +1,7 @@
 from typing import Optional, Dict, AsyncIterator
 from langchain_core.messages import HumanMessage
 
-from core.graph import graph
+from agent.graph import graph
 from core.logger import get_logger
 from services.streaming_helper import StreamBuffer, stream_with_buffer
 

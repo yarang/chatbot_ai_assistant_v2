@@ -69,7 +69,7 @@ async def verify_database():
         print(f"❌ Database verification failed: {e}")
         print("\nPossible causes:")
         print("1. Database server is not running")
-        print("2. Incorrect credentials in config.json or environment variables")
+        print("2. Incorrect credentials in environment variables")
         print("3. Database 'chatbot_db' does not exist")
 
 if __name__ == "__main__":

@@ -35,7 +35,7 @@ async def index(request: Request):
 @router.get("/login", response_class=HTMLResponse)
 async def login(request: Request):
     # NOTE: You must replace 'YOUR_BOT_USERNAME' with your actual bot username (without @)
-    # You can also add it to config.json and load it here.
+    # NOTE: You must replace 'YOUR_BOT_USERNAME' with your actual bot username (without @)
     bot_username = settings.telegram.bot_username or "YOUR_BOT_USERNAME" 
     return templates.TemplateResponse(request, "login.html", {"bot_username": bot_username})
 

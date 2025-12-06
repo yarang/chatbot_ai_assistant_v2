@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, BackgroundTasks
 import asyncio
 from telegram import Update, Bot
 from core.config import get_settings
-from core.graph import graph
+from agent.graph import graph
 from core.logger import get_logger
 from langchain_core.messages import HumanMessage, AIMessage
 from repository.user_repository import upsert_user
