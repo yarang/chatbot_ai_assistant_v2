@@ -11,7 +11,9 @@ from core.database import Base
 
 if TYPE_CHECKING:
     from models.user_model import User
+    from models.user_model import User
     from models.chat_room_model import ChatRoom
+    from models.evaluation_model import PersonaEvaluation
 
 
 class Persona(Base):
@@ -64,6 +66,11 @@ class Persona(Base):
     chat_rooms: Mapped[List["ChatRoom"]] = relationship(
         "ChatRoom",
         back_populates="persona"
+    )
+    evaluations: Mapped[List["PersonaEvaluation"]] = relationship(
+        "PersonaEvaluation",
+        back_populates="persona",
+        cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:

@@ -143,6 +143,31 @@ CREATE INDEX IF NOT EXISTS idx_usage_logs_user_id ON usage_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_usage_logs_chat_room_id ON usage_logs(chat_room_id);
 CREATE INDEX IF NOT EXISTS idx_usage_logs_created_at ON usage_logs(created_at);
 
+-- ============================================
+-- 6. persona_evaluations 테이블
+-- ============================================
+CREATE TABLE IF NOT EXISTS persona_evaluations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    persona_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    score INTEGER NOT NULL CHECK (score >= 1 AND score <= 5),
+    comment VARCHAR,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_persona_evaluations_persona_id 
+        FOREIGN KEY (persona_id) 
+        REFERENCES personas(id) 
+        ON DELETE CASCADE,
+    CONSTRAINT fk_persona_evaluations_user_id 
+        FOREIGN KEY (user_id) 
+        REFERENCES users(id) 
+        ON DELETE CASCADE,
+    CONSTRAINT uq_persona_user_evaluation UNIQUE (persona_id, user_id)
+);
+
+-- persona_evaluations 테이블 인덱스
+CREATE INDEX IF NOT EXISTS idx_persona_evaluations_persona_id ON persona_evaluations(persona_id);
+CREATE INDEX IF NOT EXISTS idx_persona_evaluations_user_id ON persona_evaluations(user_id);
+
 COMMIT;
 
 -- ============================================

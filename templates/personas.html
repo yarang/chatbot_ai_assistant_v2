@@ -4,15 +4,22 @@
 
 {% block content %}
 <div class="flex-between mb-6">
-    <h1 style="font-size: 1.5rem; font-weight: 700; margin: 0;">My Personas</h1>
+    <h1 style="font-size: 1.5rem; font-weight: 700; margin: 0;">Personas</h1>
     <a href="/personas/new" class="btn btn-primary">Create New Persona</a>
+</div>
+
+<div style="margin-bottom: 2rem; border-bottom: 1px solid var(--border-color);">
+    <a href="/personas?tab=my" style="display: inline-block; padding: 0.75rem 1.5rem; text-decoration: none; color: {% if active_tab == 'my' %}var(--primary-color){% else %}var(--text-muted){% endif %}; border-bottom: 2px solid {% if active_tab == 'my' %}var(--primary-color){% else %}transparent{% endif %}; font-weight: 600;">My Personas</a>
+    <a href="/personas?tab=public" style="display: inline-block; padding: 0.75rem 1.5rem; text-decoration: none; color: {% if active_tab == 'public' %}var(--primary-color){% else %}var(--text-muted){% endif %}; border-bottom: 2px solid {% if active_tab == 'public' %}var(--primary-color){% else %}transparent{% endif %}; font-weight: 600;">Public Personas</a>
 </div>
 
 <div class="grid">
     {% for persona in personas %}
     <div class="card">
         <div class="flex-between mb-4">
-            <h2 style="font-size: 1.25rem; font-weight: 600; margin: 0;">{{ persona.name }}</h2>
+            <h2 style="font-size: 1.25rem; font-weight: 600; margin: 0;">
+                <a href="/personas/{{ persona.id }}" style="text-decoration: none; color: inherit;">{{ persona.name }}</a>
+            </h2>
             {% if persona.is_public %}
             <span class="badge badge-public">Public</span>
             {% else %}
@@ -23,7 +30,8 @@
             {{ persona.description or 'No description' }}
         </p>
         <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
-            <a href="/personas/{{ persona.id }}/edit" class="btn" style="color: var(--primary-color);">Edit</a>
+            <a href="/personas/{{ persona.id }}" class="btn" style="color: var(--primary-color);">View</a>
+            <a href="/personas/{{ persona.id }}/edit" class="btn" style="color: var(--text-muted);">Edit</a>
             <form method="POST" action="/personas/{{ persona.id }}/delete" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this persona?');">
                 <button type="submit" class="btn btn-danger">Delete</button>
             </form>

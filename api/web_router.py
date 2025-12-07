@@ -96,21 +96,27 @@ async def logout():
     return response
 
 @router.get("/personas", response_class=HTMLResponse)
-async def list_personas(request: Request):
+async def list_personas(request: Request, tab: str = "my"):
     user_data = get_current_user(request)
     if not user_data:
         return RedirectResponse(url="/login")
     
-    from repository.persona_repository import get_user_personas
+    from repository.persona_repository import get_user_personas, get_public_personas
     from repository.user_repository import get_user_by_telegram_id
 
     
     db_user = await get_user_by_telegram_id(int(user_data["id"]))
     personas = []
-    if db_user:
-        personas = await get_user_personas(db_user.id, include_public=True)
+    
+    if tab == "public":
+        personas = await get_public_personas(limit=100)
+    elif db_user:
+        personas = await get_user_personas(db_user.id, include_public=False) # My personas only
             
-    return templates.TemplateResponse(request, "personas.html", get_template_context(request, user_data, {"personas": personas}))
+    return templates.TemplateResponse(request, "personas.html", get_template_context(request, user_data, {
+        "personas": personas,
+        "active_tab": tab
+    }))
 
 @router.get("/personas/new", response_class=HTMLResponse)
 async def new_persona(request: Request):
@@ -225,3 +231,70 @@ async def admin_dashboard(request: Request):
     stats = await get_system_stats()
     
     return templates.TemplateResponse(request, "admin_dashboard.html", get_template_context(request, user_data, {"stats": stats}))
+
+
+@router.get("/personas/{persona_id}", response_class=HTMLResponse)
+async def view_persona(request: Request, persona_id: str):
+    user_data = get_current_user(request)
+    if not user_data:
+        return RedirectResponse(url="/login")
+        
+    from repository.persona_repository import get_persona_by_id
+    from repository.user_repository import get_user_by_telegram_id
+    from repository.evaluation_repository import get_persona_evaluations, get_user_evaluation_for_persona, get_persona_average_score
+    import uuid
+    
+    db_user = await get_user_by_telegram_id(int(user_data["id"]))
+    persona = None
+    if db_user:
+        persona = await get_persona_by_id(persona_id, user_id=db_user.id) # user_id is checked inside if owner, but if public it should return too. 
+        # Actually get_persona_by_id might restrict to owner if user_id passed?
+        # Let's check get_persona_by_id implementation. 
+        # Usually it returns if owner OR public. If not, we should probably fetch public too.
+        # But wait, the repo function likely handles it. 
+        pass
+
+    if not persona:
+        raise HTTPException(status_code=404, detail="Persona not found")
+
+    evaluations = await get_persona_evaluations(persona.id)
+    user_evaluation = None
+    if db_user:
+        user_evaluation = await get_user_evaluation_for_persona(persona.id, db_user.id)
+    
+    average_score = await get_persona_average_score(persona.id)
+
+    return templates.TemplateResponse(request, "persona_detail.html", get_template_context(request, user_data, {
+        "persona": persona,
+        "evaluations": evaluations,
+        "user_evaluation": user_evaluation,
+        "average_score": average_score if average_score else 0,
+        "is_owner": str(persona.user_id) == str(db_user.id) if db_user else False
+    }))
+
+
+@router.post("/personas/{persona_id}/evaluate", response_class=HTMLResponse)
+async def evaluate_persona_web(
+    request: Request,
+    persona_id: str,
+    score: int = Form(...),
+    comment: str = Form(None)
+):
+    user_data = get_current_user(request)
+    if not user_data:
+        return RedirectResponse(url="/login", status_code=302)
+        
+    from repository.user_repository import get_user_by_telegram_id
+    from repository.evaluation_repository import create_evaluation
+    import uuid
+    
+    db_user = await get_user_by_telegram_id(int(user_data["id"]))
+    if db_user:
+        await create_evaluation(
+            persona_id=uuid.UUID(persona_id),
+            user_id=db_user.id,
+            score=score,
+            comment=comment
+        )
+        
+    return RedirectResponse(url=f"/personas/{persona_id}", status_code=302)

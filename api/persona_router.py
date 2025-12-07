@@ -50,6 +50,23 @@ class ChatRoomPersonaSet(BaseModel):
     persona_id: Optional[str] = None  # None이면 Persona 제거
 
 
+class EvaluationCreate(BaseModel):
+    score: int
+    comment: Optional[str] = None
+
+
+class EvaluationResponse(BaseModel):
+    id: str
+    persona_id: str
+    user_id: str
+    score: int
+    comment: Optional[str]
+    created_at: str
+
+    class Config:
+        from_attributes = True
+
+
 @router.post("/", response_model=PersonaResponse)
 async def create_persona_endpoint(
     persona: PersonaCreate = Body(...),
@@ -268,4 +285,64 @@ async def set_chat_room_persona_endpoint(
         "chat_room_id": str(chat_room.id),
         "persona_id": str(chat_room.persona_id) if chat_room.persona_id else None,
     }
+
+
+@router.post("/{persona_id}/evaluate", response_model=EvaluationResponse)
+async def create_evaluation_endpoint(
+    persona_id: str,
+    evaluation: EvaluationCreate = Body(...),
+    current_user: Dict[str, Any] = Depends(get_current_user_required),
+):
+    """
+    Persona 평가 생성
+    """
+    from repository.user_repository import get_user_by_telegram_id
+    from repository.evaluation_repository import create_evaluation
+    import uuid
+
+    db_user = await get_user_by_telegram_id(int(current_user["id"]))
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    try:
+        created = await create_evaluation(
+            persona_id=uuid.UUID(persona_id),
+            user_id=db_user.id,
+            score=evaluation.score,
+            comment=evaluation.comment
+        )
+        return EvaluationResponse(
+            id=str(created.id),
+            persona_id=str(created.persona_id),
+            user_id=str(created.user_id),
+            score=created.score,
+            comment=created.comment,
+            created_at=created.created_at.isoformat()
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/{persona_id}/evaluations", response_model=List[EvaluationResponse])
+async def get_evaluations_endpoint(
+    persona_id: str,
+):
+    """
+    Persona 평가 목록 조회
+    """
+    from repository.evaluation_repository import get_persona_evaluations
+    import uuid
+
+    evaluations = await get_persona_evaluations(uuid.UUID(persona_id))
+    return [
+        EvaluationResponse(
+            id=str(e.id),
+            persona_id=str(e.persona_id),
+            user_id=str(e.user_id),
+            score=e.score,
+            comment=e.comment,
+            created_at=e.created_at.isoformat()
+        )
+        for e in evaluations
+    ]
 

@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import uuid
-from typing import Optional, List
+from typing import TYPE_CHECKING, Optional, List
 from datetime import datetime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import String, BigInteger, TIMESTAMP, func
 from sqlalchemy.dialects.postgresql import UUID
 
 from core.database import Base
+
+if TYPE_CHECKING:
+    from models.conversation_model import Conversation
+    from models.persona_model import Persona
+    from models.evaluation_model import PersonaEvaluation
 
 
 class User(Base):
@@ -49,6 +54,11 @@ class User(Base):
     )
     personas: Mapped[List["Persona"]] = relationship(
         "Persona",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+    evaluations: Mapped[List["PersonaEvaluation"]] = relationship(
+        "PersonaEvaluation",
         back_populates="user",
         cascade="all, delete-orphan"
     )

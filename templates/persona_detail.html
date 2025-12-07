@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}{{ persona.name }} - AI Assistant{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto;">
+    <div class="flex-between mb-6">
+        <a href="/personas" class="btn" style="color: var(--text-muted);">&larr; Back to Personas</a>
+        {% if is_owner %}
+        <div class="flex gap-2">
+            <a href="/personas/{{ persona.id }}/edit" class="btn btn-primary">Edit Persona</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="card mb-6">
+        <div class="flex-between mb-4">
+            <h1 style="font-size: 2rem; font-weight: 700; margin: 0;">{{ persona.name }}</h1>
+            {% if persona.is_public %}
+            <span class="badge badge-public">Public</span>
+            {% else %}
+            <span class="badge badge-private">Private</span>
+            {% endif %}
+        </div>
+        
+        <div style="margin-bottom: 2rem;">
+            <p style="color: var(--text-muted); font-size: 1.125rem;">{{ persona.description or 'No description' }}</p>
+        </div>
+
+        <div style="background-color: var(--bg-secondary); padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 2rem;">
+            <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-muted);">System Prompt</h3>
+            <pre style="white-space: pre-wrap; font-family: monospace; color: var(--text-color);">{{ persona.content }}</pre>
+        </div>
+
+        <div class="flex-between" style="align-items: center; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+            <div>
+                <span style="font-size: 0.875rem; color: var(--text-muted);">Created by user</span>
+                <!-- In real app, show username if public -->
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-color);">
+                    {{ "%.1f"|format(average_score) }} <span style="font-size: 1rem; color: var(--text-muted);">/ 5.0</span>
+                </div>
+                <div style="font-size: 0.875rem; color: var(--text-muted);">Average Rating</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 1.5rem;">Evaluations</h2>
+
+        {% if user_evaluation %}
+        <div style="background-color: var(--bg-hover); padding: 1rem; border-radius: 0.5rem; margin-bottom: 2rem;">
+            <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem;">Your Review</h3>
+            <div class="flex justify-between mb-2">
+                <div style="color: var(--primary-color); font-weight: 700;">Score: {{ user_evaluation.score }} / 5</div>
+                <div style="color: var(--text-muted); font-size: 0.875rem;">{{ user_evaluation.created_at.strftime('%Y-%m-%d') }}</div>
+            </div>
+            {% if user_evaluation.comment %}
+            <p>{{ user_evaluation.comment }}</p>
+            {% else %}
+            <p style="color: var(--text-muted); font-style: italic;">No comment</p>
+            {% endif %}
+        </div>
+        {% else %}
+        <form method="POST" action="/personas/{{ persona.id }}/evaluate" style="margin-bottom: 2rem; background-color: var(--bg-secondary); padding: 1.5rem; border-radius: 0.5rem;">
+            <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1rem;">Leave a Review</h3>
+            
+            <div class="form-group">
+                <label for="score">Rating (1-5)</label>
+                <select id="score" name="score" required style="width: 100px;">
+                    <option value="5">5 - Excellent</option>
+                    <option value="4">4 - Good</option>
+                    <option value="3">3 - Average</option>
+                    <option value="2">2 - Fair</option>
+                    <option value="1">1 - Poor</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="comment">Comment (Optional)</label>
+                <textarea id="comment" name="comment" rows="3" placeholder="Share your experience..."></textarea>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Submit Review</button>
+        </form>
+        {% endif %}
+
+        <div class="evaluations-list">
+            {% for evaluation in evaluations %}
+                {% if not user_evaluation or evaluation.user_id != user_evaluation.user_id %}
+                <div style="border-bottom: 1px solid var(--border-color); padding: 1rem 0;">
+                    <div class="flex justify-between mb-1">
+                        <div style="font-weight: 600;">
+                            {% if evaluation.user.username %}
+                                {{ evaluation.user.username }}
+                            {% elif evaluation.user.first_name %}
+                                {{ evaluation.user.first_name }}
+                            {% else %}
+                                User ({{ evaluation.user_id|string|truncate(8, True, '') }})
+                            {% endif %}
+                        </div>
+                        <div style="color: var(--primary-color); font-weight: 700;">{{ evaluation.score }}</div>
+                    </div>
+                    {% if evaluation.comment %}
+                    <p style="margin-bottom: 0.5rem;">{{ evaluation.comment }}</p>
+                    {% endif %}
+                    <div style="color: var(--text-muted); font-size: 0.75rem;">{{ evaluation.created_at.strftime('%Y-%m-%d') }}</div>
+                </div>
+                {% endif %}
+            {% else %}
+                <p style="color: var(--text-muted); text-align: center; padding: 1rem;">No reviews yet.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

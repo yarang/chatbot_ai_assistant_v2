@@ -27,5 +27,49 @@
     </div>
 </div>
 
+<div class="card mt-6">
+    <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1.5rem;">Token Usage by Model</h3>
+    
+    {% if stats.token_usage %}
+    <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="text-align: left; border-bottom: 2px solid var(--border-color);">
+                    <th style="padding: 0.75rem;">Model</th>
+                    <th style="padding: 0.75rem;">Input Tokens</th>
+                    <th style="padding: 0.75rem;">Output Tokens</th>
+                    <th style="padding: 0.75rem;">Total</th>
+                    <th style="padding: 0.75rem; width: 30%;">Usage Distribution</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set max_tokens = 0 %}
+                {% for usage in stats.token_usage %}
+                    {% if usage.total_tokens > max_tokens %}
+                        {% set max_tokens = usage.total_tokens %}
+                    {% endif %}
+                {% endfor %}
+
+                {% for usage in stats.token_usage %}
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 0.75rem; font-weight: 600;">{{ usage.model }}</td>
+                    <td style="padding: 0.75rem;">{{ usage.input_tokens }}</td>
+                    <td style="padding: 0.75rem;">{{ usage.output_tokens }}</td>
+                    <td style="padding: 0.75rem; font-weight: 700; color: var(--primary-color);">{{ usage.total_tokens }}</td>
+                    <td style="padding: 0.75rem;">
+                        <div style="background-color: var(--bg-secondary); height: 8px; border-radius: 4px; overflow: hidden;">
+                            <div style="width: {{ (usage.total_tokens / max_tokens * 100) if max_tokens > 0 else 0 }}%; background-color: var(--primary-color); height: 100%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p style="color: var(--text-muted); font-style: italic;">No token usage data available.</p>
+    {% endif %}
+</div>
+
 <!-- Future: User List, Recent Activity, etc. -->
 {% endblock %}

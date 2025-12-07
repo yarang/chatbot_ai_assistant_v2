@@ -8,6 +8,7 @@ from models.user_model import User
 from models.conversation_model import Conversation
 from models.chat_room_model import ChatRoom
 from models.persona_model import Persona
+from models.evaluation_model import PersonaEvaluation
 from core.database import Base
 
 # 테이블 생성 순서 지정
@@ -27,5 +28,7 @@ __all__ = [
     "User",
     "Conversation",
     "ChatRoom",
+    "ChatRoom",
     "Persona",
+    "PersonaEvaluation",
 ]
