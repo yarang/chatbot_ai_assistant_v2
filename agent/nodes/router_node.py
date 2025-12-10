@@ -30,12 +30,30 @@ async def supervisor_node(state: ChatState):
     )
     
 
+
     # Define descriptions for each worker to help Supervisor route correctly
     MEMBER_DESCRIPTIONS = {
         "Researcher": "Perform web searches and gather information.",
         "GeneralAssistant": "Handle general conversation, chit-chat, and queries not related to specific tools.",
         "NotionSearch": "Primary tool for interacting with Notion. Use this to SEARCH, READ, WRITE, CREATE, or DRAFT pages in Notion."
     }
+
+    # LOOP PREVENTION LOGIC:
+    # If the last message is from an AI and it's NOT a tool call, we assume the assistant has answered.
+    # We should stop here to prevent the Supervisor from looping back to GeneralAssistant endlessly.
+    if state["messages"]:
+        last_msg = state["messages"][-1]
+        # Check if it's an AI message
+        if isinstance(last_msg, AIMessage):
+            # Check if it has tool calls (if so, we might need to continue to 'tools' node)
+            # Note: LangChain usually handles tool_calls routing *before* hitting supervisor again if using standard prebuilt nodes,
+            # but if Researcher/Notion returns to Supervisor with a tool call, we might need to handle it.
+            # However, in this graph, 'tools' node usually goes back to the calling node or Supervisor.
+            # If the AI message has NO tool calls, it's a text response. We should FINISH.
+            if not last_msg.tool_calls:
+                logger.info("Last message was a text response from AI. Deciding FINISH to prevent loop.")
+                return {"next": "FINISH"}
+
     
     # Create a string representation of members with their descriptions
     members_with_descriptions = "\n".join([f"- {name}: {desc}" for name, desc in MEMBER_DESCRIPTIONS.items()])

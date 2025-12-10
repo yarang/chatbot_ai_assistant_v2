@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Request, BackgroundTasks
 import asyncio
+from typing import Dict
 from telegram import Update, Bot
 from core.config import get_settings
 from agent.graph import graph
@@ -37,7 +38,15 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
 # Global cache for bot username
 BOT_USERNAME = None
 
-async def process_update(update: Update):
+# Global lock per user to prevent concurrent processing
+USER_LOCKS: Dict[int, asyncio.Lock] = {}
+
+def get_user_lock(user_id: int) -> asyncio.Lock:
+    if user_id not in USER_LOCKS:
+        USER_LOCKS[user_id] = asyncio.Lock()
+    return USER_LOCKS[user_id]
+
+async def _process_update_impl(update: Update):
     global BOT_USERNAME
     
     try:
@@ -115,7 +124,8 @@ async def process_update(update: Update):
         else:
             logger.debug(f"Non-group chat (type={chat.type}), processing message")
 
-        # 1. Ensure User exists
+
+            # 1. Ensure User exists
         # Email is required, so generate one
         logger.debug(f"Upserting user with telegram_id={user.id}")
         email = f"telegram_{user.id}@telegram.placeholder"
@@ -144,10 +154,11 @@ async def process_update(update: Update):
 Hello! I am your AI assistant. You can use the following commands:
 
 /help - Show this help message
+/summary - Summarize the conversation
 /persona - Show current persona
 /personas - List available personas
-/create_persona - Create a new persona
 /select_persona <id> - Select a persona
+/create_persona <json> - Create a new persona (e.g. /create_persona {"name": "Name", "content": "Prompt"})
 """
             await bot.send_message(chat_id=chat.id, text=help_text)
             return
@@ -234,6 +245,28 @@ Hello! I am your AI assistant. You can use the following commands:
                     await bot.send_message(chat_id=chat.id, text="Current persona ID not found (maybe deleted).")
             else:
                 await bot.send_message(chat_id=chat.id, text="No persona set. Using default.")
+            return
+
+        if text.startswith("/summary"):
+            await bot.send_message(chat_id=chat.id, text="대화 내용을 요약하고 있습니다. 잠시만 기다려주세요...")
+            try:
+                from services.conversation_service import summarize_chat_room
+                from telegram.helpers import escape_markdown
+                
+                summary = await summarize_chat_room(chat_room_id=db_chat_room.id, user_id=db_user.id)
+                # Use MarkdownV2 for better stability, escape the LLM output
+                safe_summary = escape_markdown(summary, version=2)
+                # Header "📋 대화 요약" in bold. Note: emojis don't strictly need escaping but good practice to be safe or just string format
+                header = escape_markdown("📋 대화 요약", version=2)
+                
+                await bot.send_message(
+                    chat_id=chat.id, 
+                    text=f"*{header}*\n\n{safe_summary}", 
+                    parse_mode="MarkdownV2"
+                )
+            except Exception as e:
+                logger.error(f"Error executing summary command: {e}")
+                await bot.send_message(chat_id=chat.id, text="대화 요약 중 오류가 발생했습니다.")
             return
 
         # 4. Invoke Graph with Streaming
@@ -431,4 +464,19 @@ Hello! I am your AI assistant. You can use the following commands:
             await bot.send_message(chat_id=chat.id, text="Sorry, I encountered an error processing your message.")
         except Exception as send_error:
             logger.error(f"Failed to send error message to user: {send_error}")
+
+
+async def process_update(update: Update):
+    """
+    Wrapper around _process_update_impl to enforce sequential processing per user.
+    """
+    user = update.effective_user
+    if not user:
+        await _process_update_impl(update)
+        return
+
+    lock = get_user_lock(user.id)
+    async with lock:
+        await _process_update_impl(update)
+
 

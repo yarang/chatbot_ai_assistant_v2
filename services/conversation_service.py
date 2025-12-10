@@ -110,3 +110,48 @@ async def ask_question_stream(
 
 
 
+
+from core.llm import get_llm
+from repository.conversation_repository import get_history
+
+async def summarize_chat_room(chat_room_id: str, user_id: str) -> str:
+    """
+    채팅방 대화 내용을 요약합니다.
+    
+    Args:
+        chat_room_id: 채팅방 ID
+        user_id: 사용자 ID
+        
+    Returns:
+        요약된 텍스트
+    """
+    try:
+        # 대화 기록 가져오기 (최근 50개)
+        history = await get_history(chat_room_id, limit=50)
+        
+        if not history:
+            return "요약할 대화 내용이 없습니다."
+            
+        # 대화 내용 텍스트로 변환 (오래된 순)
+        conversation_text = ""
+        for role, message in history:
+            conversation_text += f"{role}: {message}\n"
+            
+        # 요약 요청 프롬프트
+        llm = get_llm("gemini-2.5-flash") # Use 2.5 flash
+        
+        prompt = f"""
+        다음 대화 내용을 간략하게 요약해주세요. 주요 주제와 결론 위주로 정리해주세요.
+        
+        대화 내용:
+        {conversation_text}
+        
+        요약:
+        """
+        
+        response = await llm.ainvoke([HumanMessage(content=prompt)])
+        return response.content
+        
+    except Exception as e:
+        logger.error(f"Error summarizing chat room: {e}", exc_info=True)
+        return "대화 내용을 요약하는 중 오류가 발생했습니다."

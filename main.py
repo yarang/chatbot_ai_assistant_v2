@@ -1,4 +1,33 @@
 import logging
+import sys
+import os
+
+# Monkeypatch fix for ModelProfile missing in langchain_core
+import langchain_core.language_models
+if not hasattr(langchain_core.language_models, 'ModelProfile'):
+    class ModelProfile(dict): pass
+    langchain_core.language_models.ModelProfile = ModelProfile
+if not hasattr(langchain_core.language_models, 'ModelProfileRegistry'):
+    class ModelProfileRegistry(dict): pass
+    langchain_core.language_models.ModelProfileRegistry = ModelProfileRegistry
+if not hasattr(langchain_core.language_models, 'is_openai_data_block'):
+    langchain_core.language_models.is_openai_data_block = lambda *args: False
+
+# Monkeypatch for messages.content
+import langchain_core.messages
+if not hasattr(langchain_core.messages, 'content'):
+    from types import ModuleType
+    content_mod = ModuleType('langchain_core.messages.content')
+    class Citation: pass
+    content_mod.Citation = Citation
+    class ContentBlock: pass
+    content_mod.ContentBlock = ContentBlock
+    sys.modules['langchain_core.messages.content'] = content_mod
+    
+    # Also attach to langchain_core.messages module itself if not present
+    if not hasattr(langchain_core.messages, 'content'):
+        langchain_core.messages.content = content_mod
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
