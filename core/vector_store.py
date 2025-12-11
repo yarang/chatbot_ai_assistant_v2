@@ -12,8 +12,8 @@ def get_embeddings():
     )
 
 def get_vector_store(collection_name: str = "chatbot_docs"):
-    # Use sync connection string for PGVector initialization
-    connection_string = get_database_url(async_driver=False)
+    # Use async connection string for PGVector initialization
+    connection_string = get_database_url(async_driver=True)
     
     embeddings = get_embeddings()
     
@@ -22,5 +22,6 @@ def get_vector_store(collection_name: str = "chatbot_docs"):
         collection_name=collection_name,
         connection=connection_string,
         use_jsonb=True,
-        create_extension=False,  # 일반 사용자 모드: vector extension은 관리자가 사전 설치 필요
+        create_extension=False,
+        async_mode=True,
     )

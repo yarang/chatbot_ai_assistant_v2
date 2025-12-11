@@ -27,7 +27,7 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
     data = await request.json()
     try:
         update = Update.de_json(data, bot)
-        if update.message and update.message.text:
+        if update.message and (update.message.text or update.message.document or update.message.photo):
             background_tasks.add_task(process_update, update)
     except Exception as e:
         print(f"Error parsing update: {e}")
@@ -61,11 +61,11 @@ async def _process_update_impl(update: Update):
 
         text = message.text or message.caption
         
-        if not text and not message.photo:
-            logger.debug("Message has no text or photo, skipping")
+        if not text and not message.photo and not message.document:
+            logger.debug("Message has no text, photo, or document, skipping")
             return
         
-        logger.info(f"Processing message from chat_id={chat.id}, chat_type={chat.type}, user_id={user.id}, text_preview={text[:50] if text else 'photo'}")
+        logger.info(f"Processing message from chat_id={chat.id}, chat_type={chat.type}, user_id={user.id}, text_preview={text[:50] if text else 'photo/doc'}")
 
         # Lazy load bot username
         if BOT_USERNAME is None:
@@ -149,7 +149,7 @@ async def _process_update_impl(update: Update):
         logger.debug(f"Chat room upserted: db_chat_room_id={db_chat_room.id}")
         
         # 3. Handle Commands
-        if text.startswith("/start") or text.startswith("/help"):
+        if text and (text.startswith("/start") or text.startswith("/help")):
             help_text = """
 Hello! I am your AI assistant. You can use the following commands:
 
@@ -163,7 +163,7 @@ Hello! I am your AI assistant. You can use the following commands:
             await bot.send_message(chat_id=chat.id, text=help_text)
             return
 
-        if text.startswith("/create_persona"):
+        if text and text.startswith("/create_persona"):
             # Expected format: /create_persona {"name": "...", "content": "..."}
             try:
                 import json
@@ -200,7 +200,7 @@ Hello! I am your AI assistant. You can use the following commands:
                 await bot.send_message(chat_id=chat.id, text=f"Error creating persona: {e}")
             return
 
-        if text.startswith("/personas"):
+        if text and text.startswith("/personas"):
             # List user's personas + public personas
             try:
                 user_personas = await get_user_personas(db_user.id, include_public=True)
@@ -216,7 +216,7 @@ Hello! I am your AI assistant. You can use the following commands:
                 await bot.send_message(chat_id=chat.id, text=f"Error fetching personas: {e}")
             return
 
-        if text.startswith("/select_persona"):
+        if text and text.startswith("/select_persona"):
             parts = text.split()
             if len(parts) < 2:
                 await bot.send_message(chat_id=chat.id, text="Usage: /select_persona <id>")
@@ -235,7 +235,7 @@ Hello! I am your AI assistant. You can use the following commands:
                 await bot.send_message(chat_id=chat.id, text=f"Error setting persona: {e}")
             return
             
-        if text.startswith("/persona"):
+        if text and text.startswith("/persona"):
             # Show current persona
             if db_chat_room.persona_id:
                 persona = await get_persona_by_id(db_chat_room.persona_id)
@@ -247,7 +247,7 @@ Hello! I am your AI assistant. You can use the following commands:
                 await bot.send_message(chat_id=chat.id, text="No persona set. Using default.")
             return
 
-        if text.startswith("/summary"):
+        if text and text.startswith("/summary"):
             await bot.send_message(chat_id=chat.id, text="대화 내용을 요약하고 있습니다. 잠시만 기다려주세요...")
             try:
                 from services.conversation_service import summarize_chat_room
@@ -267,6 +267,62 @@ Hello! I am your AI assistant. You can use the following commands:
             except Exception as e:
                 logger.error(f"Error executing summary command: {e}")
                 await bot.send_message(chat_id=chat.id, text="대화 요약 중 오류가 발생했습니다.")
+            return
+
+        if text and text.startswith("/files"):
+            # List known documents
+            try:
+                from services.knowledge_service import get_chat_room_documents
+                from telegram.helpers import escape_markdown
+                
+                logger.info(f"Listing files for chat_room_id={db_chat_room.id}")
+                docs = await get_chat_room_documents(str(db_chat_room.id))
+                
+                if not docs:
+                    logger.info("No docs returned from service.")
+                    await bot.send_message(chat_id=chat.id, text="No uploaded documents found in this room.")
+                else:
+                    msg = "📚 *Uploaded Documents*:\n\n"
+                    for doc in docs:
+                        # Escape filename for Markdown (v1 legacy used here since parse_mode="Markdown")
+                        # Version 1 escapes are minimal but we need to be careful.
+                        # Actually let's just use explicit replacements or safe text.
+                        # Using MarkdownV2 is better but requires escaping everything.
+                        # Let's stick to v1 but escape common chars.
+                        safe_filename = doc.filename.replace("_", "\\_").replace("*", "\\*").replace("`", "\\`").replace("[", "\\[")
+                        
+                        sub_text = f"Method: {doc.processing_method}, Size: {doc.size or 0} bytes"
+                        # Escape sub_text chars too just in case
+                        sub_text = sub_text.replace("_", "\\_").replace("*", "\\*").replace("`", "\\`")
+                        
+                        msg += f"📄 *{safe_filename}*\n   ID: `{doc.id}`\n   {sub_text}\n\n"
+                    
+                    msg += "Use `/delete_file <id>` to remove."
+                    await bot.send_message(chat_id=chat.id, text=msg, parse_mode="Markdown")
+            except Exception as e:
+                logger.error(f"Error fetching files: {e}")
+                await bot.send_message(chat_id=chat.id, text="Failed to retrieve file list.")
+            return
+
+        if text and text.startswith("/delete_file"):
+            # Delete a document
+            parts = text.split()
+            if len(parts) < 2:
+                await bot.send_message(chat_id=chat.id, text="Usage: /delete_file <id>")
+                return
+            
+            doc_id = parts[1]
+            try:
+                from services.knowledge_service import delete_document
+                success = await delete_document(doc_id, str(db_chat_room.id))
+                
+                if success:
+                    await bot.send_message(chat_id=chat.id, text=f"✅ Document `{doc_id}` deleted successfully.", parse_mode="Markdown")
+                else:
+                    await bot.send_message(chat_id=chat.id, text=f"❌ Failed to delete document. Check ID and Permissions.")
+            except Exception as e:
+                logger.error(f"Error deleting file: {e}")
+                await bot.send_message(chat_id=chat.id, text=f"Error deleting file: {e}")
             return
 
         # 4. Invoke Graph with Streaming
@@ -290,6 +346,56 @@ Hello! I am your AI assistant. You can use the following commands:
             except Exception as e:
                 print(f"Error processing photo: {e}")
                 await bot.send_message(chat_id=chat.id, text="Failed to process image.")
+            except Exception as e:
+                print(f"Error processing photo: {e}")
+                await bot.send_message(chat_id=chat.id, text="Failed to process image.")
+                return
+
+        # Check for Document (PDF/TXT)
+        if message.document:
+            try:
+                doc = message.document
+                file_name = doc.file_name or "unknown_file"
+                mime_type = doc.mime_type or ""
+                
+                # Check for supported types
+                if "pdf" in mime_type.lower() or "text/plain" in mime_type.lower() or file_name.lower().endswith(".pdf") or file_name.lower().endswith(".txt"):
+                    
+                    await bot.send_message(chat_id=chat.id, text=f"📥 Processing document: {file_name}...\nThis may take a moment.")
+                    
+                    file_obj = await bot.get_file(doc.file_id)
+                    
+                    # Convert Telegram file to UploadFile-like object or byte stream
+                    # knowledge_service expects UploadFile but we can adapt it or change service to accept bytes.
+                    # Adapting here:
+                    from io import BytesIO
+                    from fastapi import UploadFile
+                    
+                    file_bytes = await file_obj.download_as_bytearray()
+                    byte_stream = BytesIO(file_bytes)
+                    
+                    # Mock UploadFile
+                    upload_file = UploadFile(file=byte_stream, filename=file_name)
+                    
+                    from services.knowledge_service import process_uploaded_file
+                    success, msg = await process_uploaded_file(str(db_chat_room.id), str(db_user.id), upload_file)
+                    
+                    if success:
+                         await bot.send_message(chat_id=chat.id, text=f"✅ {msg}")
+                    else:
+                         # Truncate error message if too long
+                         error_msg = str(msg)
+                         if len(error_msg) > 3000:
+                             error_msg = error_msg[:3000] + "... (truncated)"
+                         await bot.send_message(chat_id=chat.id, text=f"❌ Ingestion failed: {error_msg}")
+                    return
+                else:
+                    await bot.send_message(chat_id=chat.id, text="Unsupported file type. Please upload PDF or TXT files.")
+                    return
+
+            except Exception as e:
+                logger.error(f"Error processing document: {e}", exc_info=True)
+                await bot.send_message(chat_id=chat.id, text="Failed to process document.")
                 return
 
         message_content = text

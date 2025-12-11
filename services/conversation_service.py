@@ -1,8 +1,10 @@
 from typing import Optional, Dict, AsyncIterator
 from langchain_core.messages import HumanMessage
+from google.api_core import exceptions as google_exceptions
 
 from agent.graph import graph
 from core.logger import get_logger
+from core.config import get_settings
 from services.streaming_helper import StreamBuffer, stream_with_buffer
 
 logger = get_logger(__name__)
@@ -36,6 +38,12 @@ async def ask_question(user_id: Optional[str], chat_room_id: str, question: str,
         config = {"recursion_limit": 20}
         try:
             final_state = await graph.ainvoke(initial_state, config=config)
+        except google_exceptions.ServiceUnavailable:
+            logger.warning("Google GenAI Service Unavailable")
+            return "죄송합니다. 현재 AI 서버가 매우 혼잡하여 응답할 수 없습니다. 잠시 후 다시 시도해 주세요."
+        except google_exceptions.RetryError:
+            logger.warning("Google GenAI Retry Error")
+            return "죄송합니다. 요청 처리 중 최대 재배 횟수를 초과했습니다. 잠시 후 다시 시도해 주세요."
         except Exception as e:
             if "429" in str(e) or "ResourceExhausted" in str(e):
                 logger.warning(f"Rate limit exceeded: {e}")
@@ -76,11 +84,13 @@ async def ask_question_stream(
     
     try:
         # Initial State
+        settings = get_settings()
         initial_state = {
             "messages": [HumanMessage(content=question)],
             "user_id": user_id,
             "chat_room_id": chat_room_id,
             "persona_content": system_prompt,
+            "model_name": settings.gemini.model_name,
             "next": ""
         }
         
@@ -95,6 +105,12 @@ async def ask_question_stream(
             
             async for chunk in stream_with_buffer(stream, buffer):
                 yield chunk
+        except google_exceptions.ServiceUnavailable:
+            logger.warning("Google GenAI Service Unavailable in stream")
+            yield "죄송합니다. 현재 AI 서버가 매우 혼잡하여 응답할 수 없습니다. 잠시 후 다시 시도해 주세요."
+        except google_exceptions.RetryError:
+            logger.warning("Google GenAI Retry Error in stream")
+            yield "죄송합니다. 요청 처리 중 최대 재시도 횟수를 초과했습니다. 잠시 후 다시 시도해 주세요."
         except Exception as e:
             if "429" in str(e) or "ResourceExhausted" in str(e):
                 logger.warning(f"Rate limit exceeded in stream: {e}")

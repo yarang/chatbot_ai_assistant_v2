@@ -33,7 +33,7 @@ async def supervisor_node(state: ChatState):
 
     # Define descriptions for each worker to help Supervisor route correctly
     MEMBER_DESCRIPTIONS = {
-        "Researcher": "Perform web searches and gather information.",
+        "Researcher": "Perform web searches, search internal knowledge base (RAG), and recall past conversation history.",
         "GeneralAssistant": "Handle general conversation, chit-chat, and queries not related to specific tools.",
         "NotionSearch": "Primary tool for interacting with Notion. Use this to SEARCH, READ, WRITE, CREATE, or DRAFT pages in Notion."
     }

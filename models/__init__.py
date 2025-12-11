@@ -9,6 +9,7 @@ from models.conversation_model import Conversation
 from models.chat_room_model import ChatRoom
 from models.persona_model import Persona
 from models.evaluation_model import PersonaEvaluation
+from models.knowledge_doc_model import KnowledgeDoc
 from core.database import Base
 
 # 테이블 생성 순서 지정
@@ -17,7 +18,8 @@ table_orders = {
     "users": 1,
     "personas": 2,
     "chat_rooms": 3,
-    "conversations": 4
+    "conversations": 4,
+    "knowledge_docs": 5
 }
 
 for table_name, order in table_orders.items():
@@ -28,7 +30,7 @@ __all__ = [
     "User",
     "Conversation",
     "ChatRoom",
-    "ChatRoom",
     "Persona",
     "PersonaEvaluation",
+    "KnowledgeDoc",
 ]

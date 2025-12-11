@@ -171,6 +171,28 @@ CREATE INDEX IF NOT EXISTS idx_persona_evaluations_user_id ON persona_evaluation
 COMMIT;
 
 -- ============================================
--- 스키마 생성 완료
+-- 7. knowledge_docs 테이블
 -- ============================================
+CREATE TABLE IF NOT EXISTS knowledge_docs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    chat_room_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    filename VARCHAR NOT NULL,
+    file_path VARCHAR NOT NULL,
+    file_type VARCHAR NOT NULL,
+    processing_method VARCHAR DEFAULT 'text', -- 'text' or 'vision'
+    size INTEGER,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_knowledge_docs_chat_room_id 
+        FOREIGN KEY (chat_room_id) 
+        REFERENCES chat_rooms(id) 
+        ON DELETE CASCADE,
+    CONSTRAINT fk_knowledge_docs_user_id 
+        FOREIGN KEY (user_id) 
+        REFERENCES users(id) 
+        ON DELETE SET NULL
+);
+
+-- knowledge_docs 테이블 인덱스
+CREATE INDEX IF NOT EXISTS idx_knowledge_docs_chat_room_id ON knowledge_docs(chat_room_id);
 

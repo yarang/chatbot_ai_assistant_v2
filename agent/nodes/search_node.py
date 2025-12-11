@@ -12,7 +12,8 @@ from agent.state import ChatState
 async def researcher_node(state: ChatState):
     llm = get_llm(state.get("model_name"))
     search_tool = get_search_tool()
-    retrieval_tool = get_retrieval_tool()
+    chat_room_id = state.get("chat_room_id")
+    retrieval_tool = get_retrieval_tool(chat_room_id=str(chat_room_id) if chat_room_id else None)
     memory_tool = get_memory_tool()
     time_tool = get_time_tool()
     tools = [search_tool, retrieval_tool, memory_tool, time_tool]

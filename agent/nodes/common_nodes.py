@@ -54,7 +54,10 @@ async def save_conversation_node(state: ChatState):
         # Get token usage from state
         input_tokens = state.get("input_tokens_used", 0)
         output_tokens = state.get("output_tokens_used", 0)
-        model_name = state.get("model_name", "gemini-pro")
+        
+        from core.config import get_settings
+        settings = get_settings()
+        model_name = state.get("model_name", settings.gemini.model_name)
         
         # Handle multimodal content for AI message
         ai_content = ai_message.content

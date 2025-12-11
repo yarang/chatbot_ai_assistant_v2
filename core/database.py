@@ -48,7 +48,9 @@ def get_engine():
         database_url = get_database_url()
         _engine = create_async_engine(
             database_url,
-            echo=False
+            echo=False,
+            pool_pre_ping=True,
+            pool_recycle=300,
         )
     return _engine
 

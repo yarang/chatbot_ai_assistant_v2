@@ -3,12 +3,19 @@ from langchain_core.documents import Document
 from core.vector_store import get_vector_store
 from typing import List
 
-def get_retrieval_tool():
+def get_retrieval_tool(chat_room_id: str = None):
     """
     Returns a tool that retrieves information from the vector store.
     """
     vector_store = get_vector_store()
-    retriever = vector_store.as_retriever(search_kwargs={"k": 3})
+    
+    # Configure search arguments
+    search_kwargs = {"k": 3}
+    if chat_room_id:
+        # Filter by chat_room_id in metadata
+        search_kwargs["filter"] = {"chat_room_id": chat_room_id}
+        
+    retriever = vector_store.as_retriever(search_kwargs=search_kwargs)
     
     async def retrieve_documents(query: str) -> str:
         """Retrieve documents from the vector store based on the query."""

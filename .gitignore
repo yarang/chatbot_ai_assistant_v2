@@ -13,3 +13,5 @@ wheels/
 config.json
 logs/app.log
 .env
+
+uploads/
