@@ -149,6 +149,37 @@ class ChatRoomRepository:
         await session.refresh(chat_room)
         return chat_room
 
+    async def get_chat_room_participants(
+        self,
+        session: AsyncSession,
+        chat_room_id: Union[uuid.UUID, str],
+    ) -> list:
+        """
+        채팅방 참여자 목록 조회
+        
+        Args:
+            session: AsyncSession
+            chat_room_id: 채팅방 ID
+            
+        Returns:
+            User 객체 리스트
+        """
+        from models.conversation_model import Conversation
+        from models.user_model import User
+        
+        if isinstance(chat_room_id, str):
+            chat_room_id = uuid.UUID(chat_room_id)
+            
+        stmt = (
+            select(User)
+            .join(Conversation, Conversation.user_id == User.id)
+            .where(Conversation.chat_room_id == chat_room_id)
+            .distinct()
+        )
+        result = await session.execute(stmt)
+        return result.scalars().all()
+
+
 
 # 싱글톤 인스턴스
 _chat_room_repository = ChatRoomRepository()
@@ -236,13 +267,20 @@ async def update_chat_room_summary(
     chat_room_id: Union[uuid.UUID, str],
     summary: str,
 ) -> Optional[ChatRoom]:
-    """
-    채팅방 요약 업데이트 (편의 함수)
-    """
     async with get_async_session() as session:
         return await _chat_room_repository.update_summary(
             session=session,
             chat_room_id=chat_room_id,
             summary=summary,
         )
+
+
+async def get_chat_room_participants(chat_room_id: Union[uuid.UUID, str]) -> list:
+    """
+    채팅방 참여자 목록 조회 (편의 함수)
+    Conversation 기록이 있는 모든 User를 조회합니다.
+    """
+    async with get_async_session() as session:
+        return await _chat_room_repository.get_chat_room_participants(session, chat_room_id)
+
 

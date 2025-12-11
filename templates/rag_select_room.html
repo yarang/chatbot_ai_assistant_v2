@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Select Chat Room - Knowledge Base{% endblock %}
+
+{% block content %}
+<div class="header-section">
+    <h1>Knowledge Base Management (지식 데이터 관리)</h1>
+    <p>Select a chat room to manage its knowledge documents. (지식 문서를 관리할 채팅방을 선택하세요.)</p>
+</div>
+
+<div class="card-grid">
+    {% for room in rooms %}
+    <div class="card">
+        <h3>{{ room.name or "Private Chat" }}</h3>
+        <p class="text-muted">ID: {{ room.id }}</p>
+        <p class="text-muted">Type: {{ room.type }}</p>
+        <p class="text-muted">Updated: {{ room.updated_at.strftime('%Y-%m-%d %H:%M') }}</p>
+        <div class="actions">
+            <a href="/rag/{{ room.id }}" class="btn btn-primary">Manage Files (파일 관리)</a>
+        </div>
+    </div>
+    {% else %}
+    <div class="card">
+        <p>No chat rooms found. (채팅방이 없습니다.)</p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

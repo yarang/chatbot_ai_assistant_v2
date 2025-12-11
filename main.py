@@ -112,6 +112,9 @@ def create_app() -> FastAPI:
     app.include_router(telegram_router)
     app.include_router(qa_router)
     # app.include_router(persona_router) # Removed to prevent conflict with web_router and catch-all behavior. It is already included in api_router.
+    
+    from api.web_rag_router import router as web_rag_router
+    app.include_router(web_rag_router)
 
     return app
 

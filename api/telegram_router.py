@@ -59,6 +59,10 @@ async def _process_update_impl(update: Update):
             logger.debug("Update has no message, skipping")
             return
 
+        if user.is_bot:
+            logger.debug(f"Ignoring message from bot user_id={user.id}")
+            return
+
         text = message.text or message.caption
         
         if not text and not message.photo and not message.document:
@@ -79,53 +83,7 @@ async def _process_update_impl(update: Update):
                     print(f"Failed to fetch bot username: {e}")
 
 
-        # Group Chat Selective Response Logic
-        if chat.type in ["group", "supergroup"]:
-            logger.debug(f"Group chat detected, checking for mentions or replies")
-            is_mentioned = False
-            is_reply_to_bot = False
-            
-            # Check for mention using entities
-            if message.entities:
-                for entity in message.entities:
-                    if entity.type == "mention":
-                        # Extract username from text
-                        mention_text = text[entity.offset:entity.offset + entity.length]
-                        if BOT_USERNAME and mention_text.lower() == f"@{BOT_USERNAME.lower()}":
-                            is_mentioned = True
-                            logger.info(f"Bot mentioned via @mention in group chat")
-                            break
-                    elif entity.type == "text_mention":
-                        # Check if it mentions the bot user
-                        if BOT_USERNAME and entity.user and entity.user.username and entity.user.username.lower() == BOT_USERNAME.lower():
-                            is_mentioned = True
-                            logger.info(f"Bot mentioned via text_mention in group chat")
-                            break
-            
-            # Fallback: Check for mention in text if entities didn't catch it (or if checking text is preferred)
-            if not is_mentioned and BOT_USERNAME and f"@{BOT_USERNAME}" in text:
-                is_mentioned = True
-                logger.info(f"Bot mentioned via text search in group chat")
-
-            # Check for reply
-            if message.reply_to_message and message.reply_to_message.from_user:
-                # We need to know bot's ID to check if reply is to bot.
-                # bot.get_me() returns User object which has ID.
-                # We can cache BOT_ID as well if needed, but let's assume we can check username or ID.
-                # If we have BOT_USERNAME, we can check if reply user is us.
-                if BOT_USERNAME and message.reply_to_message.from_user.username and message.reply_to_message.from_user.username.lower() == BOT_USERNAME.lower():
-                    is_reply_to_bot = True
-                    logger.info(f"Message is a reply to bot in group chat")
-                    
-            if not (is_mentioned or is_reply_to_bot):
-                # Ignore message
-                logger.debug(f"Ignoring group message - not mentioned or replied to")
-                return
-        else:
-            logger.debug(f"Non-group chat (type={chat.type}), processing message")
-
-
-            # 1. Ensure User exists
+        # 1. Ensure User exists
         # Email is required, so generate one
         logger.debug(f"Upserting user with telegram_id={user.id}")
         email = f"telegram_{user.id}@telegram.placeholder"
