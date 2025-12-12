@@ -128,7 +128,7 @@ async def summarize_conversation_node(state: ChatState):
         if not to_summarize:
             return {}
             
-        conversation_text = "\n".join([f"{role}: {content}" for role, content in to_summarize])
+        conversation_text = "\n".join([f"{name} ({role}): {content}" for role, content, name in to_summarize])
         current_summary = state.get("summary", "")
         
         prompt = f"""

@@ -65,7 +65,8 @@ async def ask_question_stream(
     user_id: Optional[str],
     chat_room_id: str,
     question: str,
-    system_prompt: Optional[str] = None
+    system_prompt: Optional[str] = None,
+    user_name: Optional[str] = None
 ) -> AsyncIterator[str]:
     """
     질문 처리 및 스트리밍 답변 생성 (LangGraph 사용)
@@ -75,6 +76,7 @@ async def ask_question_stream(
         chat_room_id: 채팅방 ID
         question: 질문 내용
         system_prompt: 시스템 프롬프트 (선택)
+        user_name: 사용자 이름 (선택)
         
     Yields:
         답변 텍스트 청크
@@ -86,7 +88,7 @@ async def ask_question_stream(
         # Initial State
         settings = get_settings()
         initial_state = {
-            "messages": [HumanMessage(content=question)],
+            "messages": [HumanMessage(content=question, name=user_name)],
             "user_id": user_id,
             "chat_room_id": chat_room_id,
             "persona_content": system_prompt,
@@ -150,8 +152,8 @@ async def summarize_chat_room(chat_room_id: str, user_id: str) -> str:
             
         # 대화 내용 텍스트로 변환 (오래된 순)
         conversation_text = ""
-        for role, message in history:
-            conversation_text += f"{role}: {message}\n"
+        for role, message, name in history:
+            conversation_text += f"{name} ({role}): {message}\n"
             
         # 요약 요청 프롬프트
         llm = get_llm("gemini-2.5-flash") # Use 2.5 flash

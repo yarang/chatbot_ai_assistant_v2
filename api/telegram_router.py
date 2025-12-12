@@ -408,10 +408,14 @@ Hello! I am your AI assistant. You can use the following commands:
             sent_texts = {sent_msg.message_id: "..."}
             MESSAGE_LIMIT = 4000 # Telegram limit is 4096, keep buffer
             
+            # Determine user name for context
+            user_name = db_user.first_name or db_user.username or "Unknown"
+
             async for chunk in ask_question_stream(
                 user_id=str(db_user.id),
                 chat_room_id=str(db_chat_room.id),
-                question=text
+                question=text,
+                user_name=user_name
             ):
                 # Smart update logic to handle both deltas and snapshots
                 if chunk.startswith(full_response) and len(chunk) >= len(full_response):

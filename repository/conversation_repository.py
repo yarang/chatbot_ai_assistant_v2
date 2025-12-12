@@ -5,6 +5,7 @@ from sqlalchemy import select, desc
 
 from core.database import get_async_session
 from models.conversation_model import Conversation
+from models.user_model import User
 
 
 class ConversationRepository:
@@ -62,7 +63,7 @@ class ConversationRepository:
         session: AsyncSession,
         chat_room_id: Union[uuid.UUID, str],
         limit: int = 20,
-    ) -> List[Tuple[str, str]]:
+    ) -> List[Tuple[str, str, str]]:
         """
         채팅방의 대화 이력 조회
         
@@ -79,7 +80,13 @@ class ConversationRepository:
             chat_room_id = uuid.UUID(chat_room_id)
             
         stmt = (
-            select(Conversation.role, Conversation.message)
+            select(
+                Conversation.role, 
+                Conversation.message,
+                User.first_name,
+                User.username
+            )
+            .join(User, Conversation.user_id == User.id)
             .where(Conversation.chat_room_id == chat_room_id)
             .order_by(desc(Conversation.created_at))
             .limit(limit)
@@ -89,7 +96,15 @@ class ConversationRepository:
         rows = result.all()
         
         # 역순으로 반환 (오래된 것부터)
-        return [(row.role, row.message) for row in reversed(rows)]
+        history = []
+        for row in reversed(rows):
+            role = row.role
+            message = row.message
+            # Determine name: first_name > username > "Unknown"
+            name = row.first_name or row.username or "Unknown"
+            history.append((role, message, name))
+            
+        return history
 
 
 # 싱글톤 인스턴스
@@ -130,7 +145,7 @@ async def add_message(
         )
 
 
-async def get_history(chat_room_id: Union[uuid.UUID, str], limit: int = 20) -> List[Tuple[str, str]]:
+async def get_history(chat_room_id: Union[uuid.UUID, str], limit: int = 20) -> List[Tuple[str, str, str]]:
     """
     채팅방의 대화 이력 조회 (편의 함수)
     

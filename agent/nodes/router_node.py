@@ -105,9 +105,9 @@ async def supervisor_node(state: ChatState):
     # Fetch recent history
     chat_room_id = state["chat_room_id"]
     history_tuples = await get_history(chat_room_id, limit=10)
-    for role, content in history_tuples:
+    for role, content, name in history_tuples:
         if role == "user":
-            messages.append(HumanMessage(content=content))
+            messages.append(HumanMessage(content=content, name=name))
         else:
             messages.append(AIMessage(content=content))
             

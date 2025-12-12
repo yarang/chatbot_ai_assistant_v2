@@ -9,7 +9,7 @@
 
 <div class="card">
     {% if history %}
-        {% for role, content in history %}
+        {% for role, content, name in history %}
             <div class="message {% if role == 'user' %}message-user{% else %}message-assistant{% endif %}">
                 <div class="message-meta">{{ role|title }}</div>
                 {{ content }}
