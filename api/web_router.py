@@ -73,21 +73,45 @@ async def telegram_callback(request: Request):
     return response
 
 @router.get("/dashboard", response_class=HTMLResponse)
-async def dashboard(request: Request):
+async def dashboard(request: Request, room_id: str = None):
     user_data = get_current_user(request)
     if not user_data:
         return RedirectResponse(url="/login")
         
+    from repository.chat_room_repository import get_user_chat_rooms, get_chat_room_by_id
+    from repository.user_repository import get_user_by_telegram_id
+    import uuid
+
     telegram_id = int(user_data["id"])
+    db_user = await get_user_by_telegram_id(telegram_id)
     
-    # Fetch chat history
-    # Assuming private chat
-    chat_room = await get_chat_room_by_telegram_id(telegram_id)
+    if not db_user:
+         # Should not happen if logged in usually, but safety check
+         return RedirectResponse(url="/login")
+
+    # Fetch user's chat rooms
+    chat_rooms = await get_user_chat_rooms(db_user.id)
+    
+    current_room = None
+    if room_id:
+        try:
+            current_room = await get_chat_room_by_id(room_id)
+        except:
+             pass
+    
+    # If no specific room requested, or requested room not found/invalid, pick the first one (most likely private chat or recent)
+    if not current_room and chat_rooms:
+        current_room = chat_rooms[0]
+
     history = []
-    if chat_room:
-        history = await get_history(chat_room.id, limit=50)
+    if current_room:
+        history = await get_history(current_room.id, limit=50)
         
-    return templates.TemplateResponse(request, "dashboard.html", get_template_context(request, user_data, {"history": history}))
+    return templates.TemplateResponse(request, "user_dashboard.html", get_template_context(request, user_data, {
+        "chat_rooms": chat_rooms,
+        "current_room": current_room,
+        "history": history
+    }))
 
 @router.get("/logout")
 async def logout():

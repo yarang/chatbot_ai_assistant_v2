@@ -149,6 +149,39 @@ class ChatRoomRepository:
         await session.refresh(chat_room)
         return chat_room
 
+    async def get_chat_rooms_by_user_id(
+        self,
+        session: AsyncSession,
+        user_id: Union[uuid.UUID, str],
+    ) -> list:
+        """
+        사용자가 참여한 채팅방 목록 조회
+        
+        Args:
+            session: AsyncSession
+            user_id: 사용자 ID
+            
+        Returns:
+            ChatRoom 객체 리스트
+        """
+        from models.conversation_model import Conversation
+        from models.chat_room_model import ChatRoom
+        
+        if isinstance(user_id, str):
+            user_id = uuid.UUID(user_id)
+            
+        # 1. 사용자가 메시지를 보낸 채팅방 (Conversations 테이블 조인)
+        stmt = (
+            select(ChatRoom)
+            .join(Conversation, Conversation.chat_room_id == ChatRoom.id)
+            .where(Conversation.user_id == user_id)
+            .distinct()
+        )
+        result = await session.execute(stmt)
+        chat_rooms = result.scalars().all()
+        
+        return chat_rooms
+
     async def get_chat_room_participants(
         self,
         session: AsyncSession,
@@ -282,5 +315,13 @@ async def get_chat_room_participants(chat_room_id: Union[uuid.UUID, str]) -> lis
     """
     async with get_async_session() as session:
         return await _chat_room_repository.get_chat_room_participants(session, chat_room_id)
+
+
+async def get_user_chat_rooms(user_id: Union[uuid.UUID, str]) -> list:
+    """
+    사용자 채팅방 목록 조회 (편의 함수)
+    """
+    async with get_async_session() as session:
+        return await _chat_room_repository.get_chat_rooms_by_user_id(session, user_id)
 
 

@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - AI Assistant{% endblock %}
+
+{% block content %}
+<div style="display: flex; gap: 2rem; height: calc(100vh - 120px);">
+    <!-- Sidebar: Conversation List -->
+    <aside style="width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 1rem; border-right: 1px solid var(--border-color); padding-right: 1.5rem; overflow-y: auto;">
+        <div class="flex-between">
+            <h2 style="font-size: 1.25rem; font-weight: 600;">Conversations</h2>
+        </div>
+        
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+            {% if chat_rooms %}
+                {% for room in chat_rooms %}
+                    <a href="/dashboard?room_id={{ room.id }}" 
+                       class="card" 
+                       style="padding: 1rem; text-decoration: none; color: inherit; border: 1px solid {% if current_room and current_room.id|string == room.id|string %}var(--primary-color){% else %}transparent{% endif %}; background-color: {% if current_room and current_room.id|string == room.id|string %}var(--bg-secondary){% else %}var(--card-bg){% endif %}; transition: all 0.2s ease;">
+                        <div style="font-weight: 600; font-size: 0.95rem;">
+                            {% if room.name %}
+                                {{ room.name }}
+                            {% elif room.type == 'private' %}
+                                Private Chat
+                            {% else %}
+                                {{ room.type|title }}
+                            {% endif %}
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">
+                            {% if room.username %}@{{ room.username }}{% endif %}
+                        </div>
+                    </a>
+                {% endfor %}
+            {% else %}
+                <p class="text-muted">No conversations found.</p>
+            {% endif %}
+        </div>
+    </aside>
+
+    <!-- Main Content: Chat History -->
+    <section style="flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;">
+        {% if current_room %}
+            <div class="flex-between mb-4">
+                <h2 style="font-size: 1.5rem;">
+                    {% if current_room.name %}
+                        {{ current_room.name }}
+                    {% elif current_room.type == 'private' %}
+                        Private Chat
+                    {% else %}
+                        {{ current_room.type|title }}
+                    {% endif %}
+                </h2>
+                <span class="badge badge-secondary">{{ current_room.type }}</span>
+            </div>
+
+            <div class="card" style="flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column-reverse;">
+                {% if history %}
+                    <div style="display: flex; flex-direction: column; gap: 1rem;">
+                        {% for role, content, name in history %}
+                            <div class="message {% if role == 'user' %}message-user{% else %}message-assistant{% endif %}">
+                                <div class="message-meta">
+                                    <span style="font-weight: 600;">{{ name }}</span>
+                                    <span style="font-size: 0.8em; opacity: 0.7; margin-left: 0.5rem;">{{ role|title }}</span>
+                                </div>
+                                {{ content }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div style="text-align: center; color: var(--text-muted); margin-top: 20%;">
+                        <p>No messages yet.</p>
+                    </div>
+                {% endif %}
+            </div>
+        {% else %}
+            <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; color: var(--text-muted);">
+                <p>Select a conversation to view history.</p>
+            </div>
+        {% endif %}
+    </section>
+</div>
+
+<style>
+    /* Inline styles for quick prototyping, move to style.css in production */
+    .message {
+        padding: 1rem;
+        border-radius: 0.5rem;
+        max-width: 80%;
+        line-height: 1.5;
+    }
+    .message-user {
+        align-self: flex-end;
+        background-color: var(--primary-color);
+        color: white;
+        margin-left: auto;
+    }
+    .message-assistant {
+        align-self: flex-start;
+        background-color: var(--bg-secondary);
+        color: var(--text-primary);
+        margin-right: auto;
+    }
+    .message-meta {
+        font-size: 0.75rem;
+        margin-bottom: 0.25rem;
+        opacity: 0.8;
+    }
+</style>
+{% endblock %}
