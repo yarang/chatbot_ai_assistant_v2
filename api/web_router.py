@@ -90,7 +90,12 @@ async def dashboard(request: Request, room_id: str = None):
          return RedirectResponse(url="/login")
 
     # Fetch user's chat rooms
-    chat_rooms = await get_user_chat_rooms(db_user.id)
+    is_admin = telegram_id in settings.admin_ids
+    if is_admin:
+        from repository.chat_room_repository import get_all_chat_rooms
+        chat_rooms = await get_all_chat_rooms()
+    else:
+        chat_rooms = await get_user_chat_rooms(db_user.id)
     
     current_room = None
     if room_id:
@@ -132,7 +137,12 @@ async def list_personas(request: Request, tab: str = "my"):
     db_user = await get_user_by_telegram_id(int(user_data["id"]))
     personas = []
     
-    if tab == "public":
+    is_admin = int(user_data["id"]) in settings.admin_ids
+
+    if is_admin:
+        from repository.persona_repository import get_all_personas
+        personas = await get_all_personas(limit=100)
+    elif tab == "public":
         personas = await get_public_personas(limit=100)
     elif db_user:
         personas = await get_user_personas(db_user.id, include_public=False) # My personas only

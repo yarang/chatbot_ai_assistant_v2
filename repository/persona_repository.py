@@ -241,6 +241,26 @@ class PersonaRepository:
         return list(result.scalars().all())
 
 
+    async def get_all_personas(
+        self,
+        session: AsyncSession,
+        limit: int = 50,
+    ) -> List[Persona]:
+        """
+        모든 Persona 목록 조회 (관리자용)
+        
+        Args:
+            session: AsyncSession 인스턴스
+            limit: 조회할 최대 개수
+            
+        Returns:
+            모든 Persona 리스트
+        """
+        stmt = select(Persona).limit(limit)
+        result = await session.execute(stmt)
+        return list(result.scalars().all())
+
+
 # 싱글톤 인스턴스
 _persona_repository = PersonaRepository()
 
@@ -329,6 +349,15 @@ async def get_public_personas(limit: int = 50) -> List[Persona]:
     """공개 Persona 목록 조회 (편의 함수)"""
     async with get_async_session() as session:
         return await _persona_repository.get_public_personas(
+            session=session,
+            limit=limit,
+        )
+
+
+async def get_all_personas(limit: int = 50) -> List[Persona]:
+    """모든 Persona 목록 조회 (편의 함수, 관리자용)"""
+    async with get_async_session() as session:
+        return await _persona_repository.get_all_personas(
             session=session,
             limit=limit,
         )

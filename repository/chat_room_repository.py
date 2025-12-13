@@ -214,6 +214,24 @@ class ChatRoomRepository:
 
 
 
+    async def get_all_chat_rooms(
+        self,
+        session: AsyncSession,
+    ) -> list:
+        """
+        모든 채팅방 목록 조회 (관리자용)
+        
+        Args:
+            session: AsyncSession
+            
+        Returns:
+            ChatRoom 객체 리스트
+        """
+        stmt = select(ChatRoom).order_by(ChatRoom.updated_at.desc())
+        result = await session.execute(stmt)
+        return result.scalars().all()
+
+
 # 싱글톤 인스턴스
 _chat_room_repository = ChatRoomRepository()
 
@@ -323,5 +341,13 @@ async def get_user_chat_rooms(user_id: Union[uuid.UUID, str]) -> list:
     """
     async with get_async_session() as session:
         return await _chat_room_repository.get_chat_rooms_by_user_id(session, user_id)
+
+
+async def get_all_chat_rooms() -> list:
+    """
+    모든 채팅방 목록 조회 (편의 함수, 관리자용)
+    """
+    async with get_async_session() as session:
+        return await _chat_room_repository.get_all_chat_rooms(session)
 
 
