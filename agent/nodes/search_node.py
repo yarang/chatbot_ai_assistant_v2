@@ -26,6 +26,8 @@ async def researcher_node(state: ChatState):
                 "You are a Researcher. You have access to search tools and a time tool."
                 " Use them to find information requested by the user."
                 " If you have found the information, summarize it and answer the user.\n"
+                "IMPORTANT: If the user asks for ANY information, you MUST use the provided tools (search_internal_knowledge or search_google) to find it. Do not rely on your internal knowledge alone.\n"
+                "IMPORTANT: When using the 'search_internal_knowledge' tool, you MUST cite the source of the information in your response. The tool output provides the source (e.g., 'Source: ...'). Append the source at the end of your answer.\n"
                 "IMPORTANT: Do not simulate the user. Do not generate 'User:' or 'Human:' dialogue.\n"
                 f"Current Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             ),
@@ -33,7 +35,18 @@ async def researcher_node(state: ChatState):
         ]
     )
     
-    chain = prompt | llm.bind_tools(tools)
+    # Determine forcing strategy (Method B)
+    # If the last message is from the user, we FORCE the usage of the retrieval tool.
+    # This prevents the AI from answering from memory.
+    last_message = state["messages"][-1]
+    force_retrieval = isinstance(last_message, HumanMessage)
+    
+    if force_retrieval:
+        # Force the specific tool
+        chain = prompt | llm.bind_tools(tools, tool_choice="search_internal_knowledge")
+    else:
+        # Auto mode for subsequent turns (e.g. after tool execution)
+        chain = prompt | llm.bind_tools(tools)
     
     # Construct messages including history and summary
     messages = []
@@ -43,9 +56,9 @@ async def researcher_node(state: ChatState):
     # Fetch recent history
     chat_room_id = state["chat_room_id"]
     history_tuples = await get_history(chat_room_id, limit=10)
-    for role, content in history_tuples:
+    for role, content, name in history_tuples:
         if role == "user":
-            messages.append(HumanMessage(content=content))
+            messages.append(HumanMessage(content=content, name=name))
         else:
             messages.append(AIMessage(content=content))
             

@@ -33,8 +33,8 @@ async def supervisor_node(state: ChatState):
 
     # Define descriptions for each worker to help Supervisor route correctly
     MEMBER_DESCRIPTIONS = {
-        "Researcher": "Perform web searches, search internal knowledge base (RAG), and recall past conversation history.",
-        "GeneralAssistant": "Handle general conversation, chit-chat, and queries not related to specific tools.",
+        "Researcher": "Primary assistant for INFORMATION RETRIEVAL. Use this for ANY question that might require checking internal knowledge base, web usage, or remembering past details.",
+        "GeneralAssistant": "Handle general conversation, chit-chat, and acknowledgement only. Do NOT use for informational queries.",
         "NotionSearch": "Primary tool for interacting with Notion. Use this to SEARCH, READ, WRITE, CREATE, or DRAFT pages in Notion."
     }
 
@@ -65,7 +65,8 @@ async def supervisor_node(state: ChatState):
             (
                 "system",
                 "Given the conversation above, who should act next?"
-                " Or should we FINISH? Select one of: {options}",
+                " Or should we FINISH? Select one of: {options}\n"
+                "CRITICAL: If the last message is from the User, you MUST NOT select FINISH. You must select a worker to answer the user.",
             ),
         ]
     ).partial(options=str(OPTIONS), members=members_with_descriptions)
@@ -124,7 +125,15 @@ async def supervisor_node(state: ChatState):
             last_msg = state["messages"][-1]
             print(f"DEBUG: Last message content: {last_msg.content[:100]}...")
             print(f"DEBUG: Supervisor routing to: {next_step}")
-        
+
+            # ROBUST FAIL-SAFE:
+            # If the supervisor selects FINISH but the last message is from the USER,
+            # it means the supervisor has effectively decided to ignore the user.
+            # We must override this and send it to a worker.
+            if next_step == "FINISH" and isinstance(last_msg, HumanMessage):
+                logger.warning("Supervisor selected FINISH after User message. Overriding to Researcher to ensure response.")
+                return {"next": "Researcher"}
+
         # Loop Detection Logic
         last_messages = state["messages"][-10:]
         ai_messages = [m.content for m in last_messages if isinstance(m, AIMessage)]

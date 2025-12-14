@@ -2,6 +2,9 @@ from langchain_core.tools import Tool
 from langchain_core.documents import Document
 from core.vector_store import get_vector_store
 from typing import List
+from core.logger import get_logger
+
+logger = get_logger(__name__)
 
 def get_retrieval_tool(chat_room_id: str = None):
     """
@@ -21,10 +24,14 @@ def get_retrieval_tool(chat_room_id: str = None):
         """Retrieve documents from the vector store based on the query."""
         try:
             # Use the retriever to get relevant documents
+            logger.info(f"Retrieving documents for query: {query}")
             documents = await retriever.ainvoke(query)
             
             if not documents:
+                logger.info("No relevant documents found.")
                 return "No relevant information found in the knowledge base."
+            
+            logger.info(f"Found {len(documents)} relevant documents.")
             
             # Format the documents into a readable string
             formatted_docs = []

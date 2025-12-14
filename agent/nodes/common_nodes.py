@@ -104,8 +104,8 @@ async def save_conversation_node(state: ChatState):
             
             # Use run_in_executor to avoid async_mode error with GoogleGenerativeAIEmbeddings
             # The async implementation of embeddings might be trying to use async client incorrectly
-            import asyncio
-            await asyncio.to_thread(vector_store.add_documents, [user_doc, ai_doc])
+            # Use aadd_documents for async indexing supported by PGVector
+            await vector_store.aadd_documents([user_doc, ai_doc])
         except Exception as e:
             print(f"Error indexing conversation: {e}")
              
