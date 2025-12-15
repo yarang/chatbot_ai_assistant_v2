@@ -21,6 +21,7 @@ class ConversationRepository:
         model: Optional[str] = None,
         input_tokens: Optional[int] = None,
         output_tokens: Optional[int] = None,
+        applied_system_prompt: Optional[str] = None,
     ) -> Conversation:
         """
         메시지 추가
@@ -34,6 +35,7 @@ class ConversationRepository:
             model: 사용한 AI 모델 (assistant 메시지의 경우)
             input_tokens: 입력 토큰 수 (assistant 메시지의 경우)
             output_tokens: 출력 토큰 수 (assistant 메시지의 경우)
+            applied_system_prompt: 적용된 시스템 프롬프트 (assistant 메시지의 경우)
             
         Returns:
             생성된 Conversation 인스턴스
@@ -44,6 +46,8 @@ class ConversationRepository:
         if isinstance(chat_room_id, str):
             chat_room_id = uuid.UUID(chat_room_id)
             
+
+            
         conversation = Conversation(
             user_id=user_id,
             chat_room_id=chat_room_id,
@@ -52,6 +56,7 @@ class ConversationRepository:
             model=model,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
+            applied_system_prompt=applied_system_prompt,
         )
         session.add(conversation)
         await session.flush()
@@ -63,7 +68,7 @@ class ConversationRepository:
         session: AsyncSession,
         chat_room_id: Union[uuid.UUID, str],
         limit: int = 20,
-    ) -> List[Tuple[str, str, str]]:
+    ) -> List[Tuple[str, str, str, Optional[str]]]:
         """
         채팅방의 대화 이력 조회
         
@@ -73,7 +78,7 @@ class ConversationRepository:
             limit: 조회할 최대 개수
             
         Returns:
-            (role, message) 튜플 리스트
+            (role, message, name, applied_system_prompt) 튜플 리스트
         """
         # 문자열인 경우 UUID로 변환
         if isinstance(chat_room_id, str):
@@ -84,7 +89,8 @@ class ConversationRepository:
                 Conversation.role, 
                 Conversation.message,
                 User.first_name,
-                User.username
+                User.username,
+                Conversation.applied_system_prompt
             )
             .join(User, Conversation.user_id == User.id)
             .where(Conversation.chat_room_id == chat_room_id)
@@ -102,7 +108,9 @@ class ConversationRepository:
             message = row.message
             # Determine name: first_name > username > "Unknown"
             name = row.first_name or row.username or "Unknown"
-            history.append((role, message, name))
+            applied_system_prompt = row.applied_system_prompt
+
+            history.append((role, message, name, applied_system_prompt))
             
         return history
 
@@ -119,6 +127,7 @@ async def add_message(
     model: Optional[str] = None,
     input_tokens: Optional[int] = None,
     output_tokens: Optional[int] = None,
+    applied_system_prompt: Optional[str] = None,
 ) -> None:
     """
     메시지 추가 (편의 함수)
@@ -131,6 +140,7 @@ async def add_message(
         model: 사용한 AI 모델 (assistant 메시지의 경우)
         input_tokens: 입력 토큰 수 (assistant 메시지의 경우)
         output_tokens: 출력 토큰 수 (assistant 메시지의 경우)
+        applied_system_prompt: 적용된 시스템 프롬프트 (assistant 메시지의 경우)
     """
     async with get_async_session() as session:
         await _conversation_repository.add_message(
@@ -142,10 +152,11 @@ async def add_message(
             model=model,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
+            applied_system_prompt=applied_system_prompt,
         )
 
 
-async def get_history(chat_room_id: Union[uuid.UUID, str], limit: int = 20) -> List[Tuple[str, str, str]]:
+async def get_history(chat_room_id: Union[uuid.UUID, str], limit: int = 20) -> List[Tuple[str, str, str, Optional[str]]]:
     """
     채팅방의 대화 이력 조회 (편의 함수)
     
@@ -154,7 +165,7 @@ async def get_history(chat_room_id: Union[uuid.UUID, str], limit: int = 20) -> L
         limit: 조회할 최대 개수
         
     Returns:
-        (role, message) 튜플 리스트
+        (role, message, name, applied_system_prompt) 튜플 리스트
     """
     async with get_async_session() as session:
         return await _conversation_repository.get_history(

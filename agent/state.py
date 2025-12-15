@@ -20,3 +20,4 @@ class ChatState(TypedDict):
     next: str
     input_tokens_used: Optional[int]
     output_tokens_used: Optional[int]
+    applied_system_prompt: Optional[str]

@@ -55,9 +55,9 @@ async def verify_user_names():
         print("\nChecking results:")
         found = False
         for item in history:
-            # Expecting tuple (role, message, name)
-            if len(item) == 3:
-                role, message, name = item
+            # Expecting tuple (role, message, name, applied_system_prompt)
+            if len(item) == 4:
+                role, message, name, _ = item
                 print(f"Role: {role}, Message: {message}, Name: {name}")
                 if name == test_user_name:
                     found = True

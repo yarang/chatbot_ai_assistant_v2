@@ -65,6 +65,9 @@ async def save_conversation_node(state: ChatState):
             text_parts = [item["text"] for item in ai_content if isinstance(item, dict) and item.get("type") == "text"]
             ai_content = " ".join(text_parts)
         
+        # Get system prompt from state
+        applied_system_prompt = state.get("applied_system_prompt")
+        
         await add_message(user_id, chat_room_id, "user", str(user_content))
         await add_message(
             user_id, 
@@ -73,7 +76,8 @@ async def save_conversation_node(state: ChatState):
             str(ai_content),
             model=model_name,
             input_tokens=input_tokens if input_tokens > 0 else None,
-            output_tokens=output_tokens if output_tokens > 0 else None
+            output_tokens=output_tokens if output_tokens > 0 else None,
+            applied_system_prompt=applied_system_prompt
         )
 
         # Index messages into vector store for RAG
@@ -128,7 +132,7 @@ async def summarize_conversation_node(state: ChatState):
         if not to_summarize:
             return {}
             
-        conversation_text = "\n".join([f"{name} ({role}): {content}" for role, content, name in to_summarize])
+        conversation_text = "\n".join([f"{name} ({role}): {content}" for role, content, name, _ in to_summarize])
         current_summary = state.get("summary", "")
         
         prompt = f"""

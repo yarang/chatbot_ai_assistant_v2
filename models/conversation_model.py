@@ -62,6 +62,7 @@ class Conversation(Base):
         server_default=func.now(),
         index=True
     )
+    applied_system_prompt: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="conversations")

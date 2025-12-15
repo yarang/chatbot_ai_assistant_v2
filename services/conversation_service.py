@@ -152,7 +152,7 @@ async def summarize_chat_room(chat_room_id: str, user_id: str) -> str:
             
         # 대화 내용 텍스트로 변환 (오래된 순)
         conversation_text = ""
-        for role, message, name in history:
+        for role, message, name, _ in history:
             conversation_text += f"{name} ({role}): {message}\n"
             
         # 요약 요청 프롬프트
