@@ -1,10 +1,11 @@
 from datetime import datetime
+import os
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.output_parsers.openai_functions import JsonOutputFunctionsParser
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_ollama import ChatOllama
 from core.llm import get_llm
 from repository.conversation_repository import get_history
-from agent.state import ChatState
+from agent.state import ChatState, RouteDecision
 
 from core.logger import get_logger
 
@@ -23,14 +24,12 @@ async def supervisor_node(state: ChatState):
         "Read the worker descriptions CAREFULLY before deciding.\n"
         "IMPORTANT: Prioritize executing the user's request using the available tools.\n"
         "If the conversation summary indicates previous failures, IGNORE them and try again.\n"
-        "Only respond with FINISH if the user's request has been completely addressed or if the answers are satisfactory.\n"
+        "Only respond with FINISH if the user's request has completely addressed or if the answers are satisfactory.\n"
         "If a tool has successfully completed the user's request (e.g. created a page), STOP immediately and respond with FINISH.\n"
         "Do not repeatedly call the same worker if they are not making progress.\n"
         f"Current Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     )
     
-
-
     # Define descriptions for each worker to help Supervisor route correctly
     MEMBER_DESCRIPTIONS = {
         "Researcher": "Primary assistant for INFORMATION RETRIEVAL. Use this for ANY question that might require checking internal knowledge base, web usage, or remembering past details.",
@@ -39,17 +38,10 @@ async def supervisor_node(state: ChatState):
     }
 
     # LOOP PREVENTION LOGIC:
-    # If the last message is from an AI and it's NOT a tool call, we assume the assistant has answered.
-    # We should stop here to prevent the Supervisor from looping back to GeneralAssistant endlessly.
     if state["messages"]:
         last_msg = state["messages"][-1]
         # Check if it's an AI message
         if isinstance(last_msg, AIMessage):
-            # Check if it has tool calls (if so, we might need to continue to 'tools' node)
-            # Note: LangChain usually handles tool_calls routing *before* hitting supervisor again if using standard prebuilt nodes,
-            # but if Researcher/Notion returns to Supervisor with a tool call, we might need to handle it.
-            # However, in this graph, 'tools' node usually goes back to the calling node or Supervisor.
-            # If the AI message has NO tool calls, it's a text response. We should FINISH.
             if not last_msg.tool_calls:
                 logger.info("Last message was a text response from AI. Deciding FINISH to prevent loop.")
                 return {"next": "FINISH"}
@@ -71,33 +63,6 @@ async def supervisor_node(state: ChatState):
         ]
     ).partial(options=str(OPTIONS), members=members_with_descriptions)
     
-    llm = get_llm(state.get("model_name"))
-    
-    # Using function calling to enforce structured output for routing
-    function_def = {
-        "name": "route",
-        "description": "Select the next role.",
-        "parameters": {
-            "title": "routeSchema",
-            "type": "object",
-            "properties": {
-                "next": {
-                    "title": "Next",
-                    "type": "string",
-                    "enum": OPTIONS,
-                }
-            },
-            "required": ["next"],
-        },
-    }
-    
-    # Bind function and create chain
-    supervisor_chain = (
-        prompt
-        | llm.bind_tools(tools=[function_def], tool_choice="route")
-        | JsonOutputFunctionsParser()
-    )
-    
     # We need to construct messages including history and summary
     messages = []
     if state.get("summary"):
@@ -113,50 +78,71 @@ async def supervisor_node(state: ChatState):
             messages.append(AIMessage(content=content))
             
     messages.extend(state["messages"])
+
+    # Hybrid Router Logic
+    use_local = os.getenv("USE_LOCAL_ROUTER", "false").lower() == "true"
+    local_url = os.getenv("LOCAL_LLM_BASE_URL", "http://172.16.1.101:11434")
+    local_model = os.getenv("LOCAL_LLM_MODEL", "llama-3.1-8b")
     
-    try:
-        result = await supervisor_chain.ainvoke({"messages": messages})
-        next_step = result["next"]
-        
-        logger.info(f"Supervisor decided next step: {next_step}")
-        
-        # Debug Logging
-        if state["messages"]:
-            last_msg = state["messages"][-1]
-            print(f"DEBUG: Last message content: {last_msg.content[:100]}...")
-            print(f"DEBUG: Supervisor routing to: {next_step}")
+    result_decision = None
 
-            # ROBUST FAIL-SAFE:
-            # If the supervisor selects FINISH but the last message is from the USER,
-            # it means the supervisor has effectively decided to ignore the user.
-            # We must override this and send it to a worker.
-            if next_step == "FINISH" and isinstance(last_msg, HumanMessage):
-                logger.warning("Supervisor selected FINISH after User message. Overriding to Researcher to ensure response.")
-                return {"next": "Researcher"}
+    async def run_chain(llm_instance):
+         structured = llm_instance.with_structured_output(RouteDecision)
+         chain = prompt | structured
+         return await chain.ainvoke({"messages": messages})
 
-        # Loop Detection Logic
-        last_messages = state["messages"][-10:]
-        ai_messages = [m.content for m in last_messages if isinstance(m, AIMessage)]
-        
-        if len(ai_messages) >= 3:
-            # Check for exact matches
-            if ai_messages[-1] == ai_messages[-2] == ai_messages[-3]:
-                print("Loop detected: Last 3 AI messages are identical. Forcing FINISH.")
-                return {"next": "FINISH"}
+    if use_local:
+        try:
+            logger.info(f"Using Local Router: {local_url} ({local_model})")
+            # Set a generic base_url for Ollama. 
+            local_llm = ChatOllama(base_url=local_url, model=local_model, temperature=0, timeout=10.0) 
+            result_decision = await run_chain(local_llm)
+        except Exception as e:
+            logger.warning(f"Local Router Failed, falling back to Gemini. Error: {e}")
+            result_decision = None
 
-            # Check for Notion page creation loop (messages differ by URL)
-            # If the last message was a successful creation, and the Supervisor is trying to schedule NotionSearch again,
-            # it means we are in a loop (unless user explicitly asked for multiple, but Supervisor should handle that).
-            if ("Successfully created Notion page" in ai_messages[-1] or "Successfully updated Notion page" in ai_messages[-1]) and next_step == "NotionSearch":
-                print("Loop detected: Repeated Notion page operation attempt. Forcing FINISH.")
-                return {"next": "FINISH"}
-                
-            if len(ai_messages) >= 4:
-                if ai_messages[-1] == ai_messages[-3] and ai_messages[-2] == ai_messages[-4]:
-                     print("Loop detected: Alternating messages detected. Forcing FINISH.")
-                     return {"next": "FINISH"}
+    if result_decision is None:
+        # Fallback to Gemini
+        try:
+            llm = get_llm(state.get("model_name"))
+            result_decision = await run_chain(llm)
+        except Exception as e:
+            print(f"Supervisor failed: {e}")
+            return {"next": "GeneralAssistant"}
 
-        return {"next": next_step}
-    except Exception as e:
-        print(f"Supervisor failed: {e}")
-        return {"next": "GeneralAssistant"}
+    next_step = result_decision.next_agent
+    
+    logger.info(f"Supervisor decided next step: {next_step} (Reason: {result_decision.reasoning})")
+    
+    # Debug Logging
+    if state["messages"]:
+        last_msg = state["messages"][-1]
+        print(f"DEBUG: Last message content: {last_msg.content[:100]}...")
+        print(f"DEBUG: Supervisor routing to: {next_step}")
+
+        # ROBUST FAIL-SAFE:
+        if next_step == "FINISH" and isinstance(last_msg, HumanMessage):
+            logger.warning("Supervisor selected FINISH after User message. Overriding to Researcher to ensure response.")
+            return {"next": "Researcher"}
+
+    # Loop Detection Logic
+    last_messages = state["messages"][-10:]
+    ai_messages = [m.content for m in last_messages if isinstance(m, AIMessage)]
+    
+    if len(ai_messages) >= 3:
+        # Check for exact matches
+        if ai_messages[-1] == ai_messages[-2] == ai_messages[-3]:
+            print("Loop detected: Last 3 AI messages are identical. Forcing FINISH.")
+            return {"next": "FINISH"}
+
+        # Check for Notion page creation loop
+        if ("Successfully created Notion page" in ai_messages[-1] or "Successfully updated Notion page" in ai_messages[-1]) and next_step == "NotionSearch":
+            print("Loop detected: Repeated Notion page operation attempt. Forcing FINISH.")
+            return {"next": "FINISH"}
+            
+        if len(ai_messages) >= 4:
+            if ai_messages[-1] == ai_messages[-3] and ai_messages[-2] == ai_messages[-4]:
+                    print("Loop detected: Alternating messages detected. Forcing FINISH.")
+                    return {"next": "FINISH"}
+
+    return {"next": next_step}

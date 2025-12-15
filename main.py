@@ -1,6 +1,10 @@
 import logging
 import sys
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv(override=True)
 
 # Monkeypatch fix for ModelProfile missing in langchain_core
 import langchain_core.language_models
@@ -55,6 +59,19 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     logger = logging.getLogger(__name__)
     logger.info(f"Starting application with log level: {settings.log_level}")
+
+    # Log Hybrid Router Configuration
+    use_local_router = os.getenv("USE_LOCAL_ROUTER", "false").lower() == "true"
+    if use_local_router:
+        local_url = os.getenv("LOCAL_LLM_BASE_URL", "http://172.16.1.101:11434")
+        local_model = os.getenv("LOCAL_LLM_MODEL", "llama-3.1-8b")
+        logger.info(f"🚀 Hybrid Context-Aware Router: ENABLED (Prioritizing Local)")
+        logger.info(f"   - Local Endpoint: {local_url}")
+        logger.info(f"   - Local Model: {local_model}")
+        logger.info(f"   - Fallback: Google Gemini API")
+    else:
+        logger.info(f"🌐 Hybrid Context-Aware Router: DISABLED (Using Cloud Only)")
+        logger.info(f"   - Primary Agent: Google Gemini API")
     
     # Set up Telegram webhook if configured
     if settings.telegram.bot_token and settings.telegram.webhook_url:
