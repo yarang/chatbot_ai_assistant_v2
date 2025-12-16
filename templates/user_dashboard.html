@@ -25,8 +25,15 @@
                                 {{ room.type|title }}
                             {% endif %}
                         </div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">
-                            {% if room.username %}@{{ room.username }}{% endif %}
+                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem; display: flex; justify-content: space-between; align-items: center;">
+                            <span>{% if room.username %}@{{ room.username }}{% endif %}</span>
+                            {% if is_admin %}
+                            <form action="/dashboard/rooms/{{ room.id }}/delete" method="post" onsubmit="return confirm('Are you sure you want to delete this chat room? This action cannot be undone.');" style="display:inline;">
+                                <button type="submit" style="background: none; border: none; color: #dc3545; cursor: pointer; font-size: 0.8em; padding: 2px 6px;">
+                                    🗑️
+                                </button>
+                            </form>
+                            {% endif %}
                         </div>
                     </a>
                 {% endfor %}

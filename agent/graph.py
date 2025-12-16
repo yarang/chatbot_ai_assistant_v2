@@ -51,7 +51,12 @@ workflow.add_edge("tools", "Researcher")
 workflow.add_edge("GeneralAssistant", "Supervisor")
 
 # NotionSearch flow
-workflow.add_edge("NotionSearch", "Supervisor")
+def route_notion(state):
+    if state.get("next") == "GeneralAssistant":
+        return "GeneralAssistant"
+    return "Supervisor"
+
+workflow.add_conditional_edges("NotionSearch", route_notion, {"Supervisor": "Supervisor", "GeneralAssistant": "GeneralAssistant"})
 
 # End flow
 workflow.add_edge("save_conversation", "summarize_conversation")

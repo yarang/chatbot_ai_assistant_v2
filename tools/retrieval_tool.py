@@ -25,6 +25,7 @@ def get_retrieval_tool(chat_room_id: str = None):
         try:
             # Use the retriever to get relevant documents
             logger.info(f"Retrieving documents for query: {query}")
+            
             documents = await retriever.ainvoke(query)
             
             if not documents:

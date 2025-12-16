@@ -232,6 +232,33 @@ class ChatRoomRepository:
         return result.scalars().all()
 
 
+    async def delete_chat_room(
+        self,
+        session: AsyncSession,
+        chat_room_id: Union[uuid.UUID, str],
+    ) -> bool:
+        """
+        채팅방 삭제
+        
+        Args:
+            session: AsyncSession
+            chat_room_id: 채팅방 ID
+            
+        Returns:
+            bool: 성공 여부
+        """
+        if isinstance(chat_room_id, str):
+            chat_room_id = uuid.UUID(chat_room_id)
+            
+        chat_room = await self.get_chat_room_by_id(session, chat_room_id)
+        if not chat_room:
+            return False
+            
+        await session.delete(chat_room)
+        await session.flush()
+        return True
+
+
 # 싱글톤 인스턴스
 _chat_room_repository = ChatRoomRepository()
 
@@ -349,5 +376,13 @@ async def get_all_chat_rooms() -> list:
     """
     async with get_async_session() as session:
         return await _chat_room_repository.get_all_chat_rooms(session)
+
+
+async def delete_chat_room(chat_room_id: Union[uuid.UUID, str]) -> bool:
+    """
+    채팅방 삭제 (편의 함수)
+    """
+    async with get_async_session() as session:
+        return await _chat_room_repository.delete_chat_room(session, chat_room_id)
 
 

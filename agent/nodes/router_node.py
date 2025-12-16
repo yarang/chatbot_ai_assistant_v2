@@ -145,4 +145,7 @@ async def supervisor_node(state: ChatState):
                     print("Loop detected: Alternating messages detected. Forcing FINISH.")
                     return {"next": "FINISH"}
 
+    # DEBUG: Force Researcher
+    next_step = "Researcher"
+    
     return {"next": next_step}

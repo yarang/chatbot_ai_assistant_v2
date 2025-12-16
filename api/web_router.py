@@ -124,6 +124,26 @@ async def logout():
     response.delete_cookie("session")
     return response
 
+
+@router.post("/dashboard/rooms/{room_id}/delete", response_class=HTMLResponse)
+async def delete_chat_room_web(request: Request, room_id: str):
+    user_data = get_current_user(request)
+    if not user_data:
+        return RedirectResponse(url="/login", status_code=302)
+        
+    # Admin Check
+    user_id = int(user_data["id"])
+    if user_id not in settings.admin_ids:
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    from repository.chat_room_repository import delete_chat_room
+    
+    success = await delete_chat_room(room_id)
+    if not success:
+         raise HTTPException(status_code=404, detail="Chat room not found")
+         
+    return RedirectResponse(url="/dashboard", status_code=302)
+
 @router.get("/personas", response_class=HTMLResponse)
 async def list_personas(request: Request, tab: str = "my"):
     user_data = get_current_user(request)

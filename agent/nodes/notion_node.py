@@ -150,6 +150,15 @@ async def notion_node(state: ChatState) -> Dict[str, Any]:
         logger.error(f"Notion Node Error: {e}", exc_info=True)
         response_text = "An error occurred while accessing Notion."
     
+    # Check for search failure
+    if "Notion에서 관련 정보를 찾을 수 없습니다" in response_text:
+        logger.info("Notion search yielded no results. Triggering fallback to GeneralAssistant.")
+        return {
+            "next": "GeneralAssistant",
+            # We do NOT add the failure message to history so GeneralAssistant sees the original user query
+        }
+
     return {
-        "messages": [AIMessage(content=response_text)]
+        "messages": [AIMessage(content=response_text)],
+        "next": "Supervisor"
     }
