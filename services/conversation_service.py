@@ -10,17 +10,22 @@ from services.streaming_helper import StreamBuffer, stream_with_buffer
 logger = get_logger(__name__)
 
 async def ask_question(user_id: Optional[str], chat_room_id: str, question: str, system_prompt: Optional[str] = None) -> str:
-    """
-    질문 처리 및 답변 생성 (LangGraph 사용)
-    
+    """질문 처리 및 답변 생성 (LangGraph 사용).
+
+    사용자의 질문을 받아 LangGraph 워크플로우를 통해 답변을 생성합니다.
+
     Args:
-        user_id: 사용자 ID
-        chat_room_id: 채팅방 ID
-        question: 질문 내용
-        system_prompt: 시스템 프롬프트 (선택)
-        
+        user_id (str, optional): 사용자 식별자. 없을 경우 'anonymous'로 처리됩니다.
+        chat_room_id (str): 대화가 이루어지는 채팅방의 고유 ID.
+        question (str): 사용자가 입력한 질문 텍스트.
+        system_prompt (str, optional): AI에게 부여할 시스템 페르소나 또는 지침.
+
     Returns:
-        생성된 답변
+        str: 생성된 답변 텍스트.
+
+    Raises:
+        google_exceptions.ServiceUnavailable: Google GenAI 서비스가 사용 불가능할 때 발생.
+        google_exceptions.RetryError: 요청 재시도 횟수를 초과했을 때 발생.
     """
     if not user_id:
         user_id = "anonymous"
@@ -68,18 +73,23 @@ async def ask_question_stream(
     system_prompt: Optional[str] = None,
     user_name: Optional[str] = None
 ) -> AsyncIterator[str]:
-    """
-    질문 처리 및 스트리밍 답변 생성 (LangGraph 사용)
-    
+    """질문 처리 및 스트리밍 답변 생성 (LangGraph 사용).
+
+    사용자의 질문을 받아 LangGraph 워크플로우를 통해 답변을 스트리밍 방식으로 생성합니다.
+
     Args:
-        user_id: 사용자 ID
-        chat_room_id: 채팅방 ID
-        question: 질문 내용
-        system_prompt: 시스템 프롬프트 (선택)
-        user_name: 사용자 이름 (선택)
-        
+        user_id (str, optional): 사용자 식별자. 없을 경우 'anonymous'로 처리됩니다.
+        chat_room_id (str): 대화가 이루어지는 채팅방의 고유 ID.
+        question (str): 사용자가 입력한 질문 텍스트.
+        system_prompt (str, optional): AI에게 부여할 시스템 페르소나 또는 지침.
+        user_name (str, optional): 사용자 이름. 질문 메시지에 포함됩니다.
+
     Yields:
-        답변 텍스트 청크
+        str: 생성된 답변의 텍스트 청크(chunk).
+
+    Raises:
+        google_exceptions.ServiceUnavailable: Google GenAI 서비스가 사용 불가능할 때 발생.
+        google_exceptions.RetryError: 요청 재시도 횟수를 초과했을 때 발생.
     """
     if not user_id:
         user_id = "anonymous"
@@ -133,15 +143,16 @@ from core.llm import get_llm
 from repository.conversation_repository import get_history
 
 async def summarize_chat_room(chat_room_id: str, user_id: str) -> str:
-    """
-    채팅방 대화 내용을 요약합니다.
-    
+    """채팅방 대화 내용을 요약합니다.
+
+    지정된 채팅방의 최근 대화 기록을 가져와 LLM을 사용하여 요약문을 생성합니다.
+
     Args:
-        chat_room_id: 채팅방 ID
-        user_id: 사용자 ID
-        
+        chat_room_id (str): 요약할 채팅방의 고유 ID.
+        user_id (str): 요청한 사용자의 ID.
+
     Returns:
-        요약된 텍스트
+        str: 생성된 대화 요약문. 만약 대화 기록이 없으면 안내 메시지를 반환합니다.
     """
     try:
         # 대화 기록 가져오기 (최근 50개)

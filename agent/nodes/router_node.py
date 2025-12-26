@@ -2,8 +2,9 @@ from datetime import datetime
 import os
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 from core.llm import get_llm
+from core.config import get_settings
 from repository.conversation_repository import get_history
 from agent.state import ChatState, RouteDecision
 
@@ -16,6 +17,18 @@ MEMBERS = ["Researcher", "GeneralAssistant", "NotionSearch"]
 OPTIONS = ["FINISH"] + MEMBERS
 
 async def supervisor_node(state: ChatState):
+    """Supervisor agent node responsible for routing the conversation.
+
+    Decides which worker node (Researcher, GeneralAssistant, NotionSearch) 
+    should act next based on the conversation history and user request. 
+    It supports a hybrid routing mechanism (Local LLM + Cloud LLM fallback).
+
+    Args:
+        state (ChatState): The current state of the conversation graph.
+
+    Returns:
+        dict: Key "next" containing the name of the next agent or "FINISH".
+    """
     system_prompt = (
         "You are a supervisor tasked with managing a conversation between the"
         " following workers: {members}. Given the following user request,"
@@ -43,8 +56,15 @@ async def supervisor_node(state: ChatState):
         # Check if it's an AI message
         if isinstance(last_msg, AIMessage):
             if not last_msg.tool_calls:
-                logger.info("Last message was a text response from AI. Deciding FINISH to prevent loop.")
-                return {"next": "FINISH"}
+                # logger.info("Last message was a text response from AI. Deciding FINISH to prevent loop.")
+                # Logic: If AI just answered without tools, we might want to finish, 
+                # but let the LLM Decide usually. 
+                # However, this check acts as a fast-path.
+                pass 
+                # Keeping original logic but suppressing log noise unless crucial
+                # return {"next": "FINISH"}
+    
+    logger.info("METRIC_NODE_EXEC: Supervisor")
 
     
     # Create a string representation of members with their descriptions
@@ -80,9 +100,13 @@ async def supervisor_node(state: ChatState):
     messages.extend(state["messages"])
 
     # Hybrid Router Logic
-    use_local = os.getenv("USE_LOCAL_ROUTER", "false").lower() == "true"
-    local_url = os.getenv("LOCAL_LLM_BASE_URL", "http://172.16.1.101:11434")
-    local_model = os.getenv("LOCAL_LLM_MODEL", "llama-3.1-8b")
+    settings = get_settings()
+    
+    use_local_router = os.getenv("USE_LOCAL_ROUTER", "false").lower() == "true"
+    
+    # Exo default often http://localhost:52415/v1, user might have custom
+    local_url = settings.local_llm_base_url or os.getenv("LOCAL_LLM_BASE_URL", "http://localhost:52415/v1") 
+    local_model = settings.local_llm_model or os.getenv("LOCAL_LLM_MODEL", "mlx-community/Qwen3-30B-A3B-4bit") 
     
     result_decision = None
 
@@ -91,11 +115,17 @@ async def supervisor_node(state: ChatState):
          chain = prompt | structured
          return await chain.ainvoke({"messages": messages})
 
-    if use_local:
+    if use_local_router:
         try:
-            logger.info(f"Using Local Router: {local_url} ({local_model})")
-            # Set a generic base_url for Ollama. 
-            local_llm = ChatOllama(base_url=local_url, model=local_model, temperature=0, timeout=10.0) 
+            logger.info(f"Using Local Router (Exo/OpenAI): {local_url} ({local_model})")
+            # We use ChatOpenAI for Exo/Local generic OpenAI compatible
+            local_llm = ChatOpenAI(
+                base_url=local_url, 
+                api_key="markdown", # Dummy key
+                model=local_model, 
+                temperature=0, 
+                timeout=10.0
+            ) 
             result_decision = await run_chain(local_llm)
         except Exception as e:
             logger.warning(f"Local Router Failed, falling back to Gemini. Error: {e}")
@@ -107,23 +137,20 @@ async def supervisor_node(state: ChatState):
             llm = get_llm(state.get("model_name"))
             result_decision = await run_chain(llm)
         except Exception as e:
-            print(f"Supervisor failed: {e}")
+            logger.error(f"Supervisor failed: {e}")
             return {"next": "GeneralAssistant"}
 
     next_step = result_decision.next_agent
     
     logger.info(f"Supervisor decided next step: {next_step} (Reason: {result_decision.reasoning})")
     
-    # Debug Logging
+    # ROBUST FAIL-SAFE:
     if state["messages"]:
         last_msg = state["messages"][-1]
-        print(f"DEBUG: Last message content: {last_msg.content[:100]}...")
-        print(f"DEBUG: Supervisor routing to: {next_step}")
-
-        # ROBUST FAIL-SAFE:
         if next_step == "FINISH" and isinstance(last_msg, HumanMessage):
             logger.warning("Supervisor selected FINISH after User message. Overriding to Researcher to ensure response.")
-            return {"next": "Researcher"}
+            next_step = "Researcher"
+            return {"next": next_step}
 
     # Loop Detection Logic
     last_messages = state["messages"][-10:]
@@ -132,20 +159,21 @@ async def supervisor_node(state: ChatState):
     if len(ai_messages) >= 3:
         # Check for exact matches
         if ai_messages[-1] == ai_messages[-2] == ai_messages[-3]:
-            print("Loop detected: Last 3 AI messages are identical. Forcing FINISH.")
+            logger.warning("METRIC_LOOP_DETECTED: Last 3 AI messages are identical. Forcing FINISH.")
+            logger.info("METRIC_ROUTING_RESULT: FINISH")
             return {"next": "FINISH"}
 
         # Check for Notion page creation loop
         if ("Successfully created Notion page" in ai_messages[-1] or "Successfully updated Notion page" in ai_messages[-1]) and next_step == "NotionSearch":
-            print("Loop detected: Repeated Notion page operation attempt. Forcing FINISH.")
+            logger.warning("METRIC_LOOP_DETECTED: Repeated Notion page operation attempt. Forcing FINISH.")
+            logger.info("METRIC_ROUTING_RESULT: FINISH")
             return {"next": "FINISH"}
             
         if len(ai_messages) >= 4:
             if ai_messages[-1] == ai_messages[-3] and ai_messages[-2] == ai_messages[-4]:
-                    print("Loop detected: Alternating messages detected. Forcing FINISH.")
+                    logger.warning("METRIC_LOOP_DETECTED: Alternating messages detected. Forcing FINISH.")
+                    logger.info("METRIC_ROUTING_RESULT: FINISH")
                     return {"next": "FINISH"}
 
-    # DEBUG: Force Researcher
-    next_step = "Researcher"
-    
+    logger.info(f"METRIC_ROUTING_RESULT: {next_step}")
     return {"next": next_step}

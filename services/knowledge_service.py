@@ -18,7 +18,15 @@ from langchain_core.output_parsers import StrOutputParser
 logger = get_logger(__name__)
 
 async def save_upload_file(file: UploadFile, chat_room_id: str) -> str:
-    """Save uploaded file to disk."""
+    """Save uploaded file to disk.
+
+    Args:
+        file (UploadFile): The file object uploaded via FastAPI.
+        chat_room_id (str): The ID of the chat room associated with the file.
+
+    Returns:
+        str: The absolute path to the saved file.
+    """
     upload_dir = f"uploads/{chat_room_id}"
     os.makedirs(upload_dir, exist_ok=True)
     
@@ -31,10 +39,16 @@ async def save_upload_file(file: UploadFile, chat_room_id: str) -> str:
     return file_path
 
 async def process_pdf_smart(file_path: str) -> str:
-    """
-    Process PDF with Smart Ingestion logic.
-    1. Try standard text extraction.
-    2. If text is insufficient, use Gemini Vision (via pypdfium2 to images).
+    """Process PDF with Smart Ingestion logic.
+
+    Attempts standard text extraction first. If the quality is low (e.g., scanned PDF),
+    it switches to a vision-based approach using Gemini 1.5 Flash to transcribe images.
+
+    Args:
+        file_path (str): Path to the PDF file.
+
+    Returns:
+        str: Extracted text content from the PDF.
     """
     text_content = ""
     
@@ -99,8 +113,18 @@ async def process_uploaded_file(
     user_id: str, 
     file: UploadFile
 ):
-    """
-    Main entry point for processing an uploaded file.
+    """Main entry point for processing an uploaded file.
+
+    Handles file saving, content extraction (text or vision), database recording,
+    and vector store ingestion.
+
+    Args:
+        chat_room_id (str): The ID of the chat room.
+        user_id (str): The ID of the user uploading the file.
+        file (UploadFile): The file object to process.
+
+    Returns:
+        tuple[bool, str]: A tuple containing success status (bool) and a message (str).
     """
     filename = file.filename
     file_type = "pdf" if filename.lower().endswith(".pdf") else "txt"
@@ -178,8 +202,13 @@ async def process_uploaded_file(
         return False, f"Processed file but failed to index: {e}"
 
 async def get_chat_room_documents(chat_room_id: str):
-    """
-    Retrieve all knowledge documents for a specific chat room.
+    """Retrieve all knowledge documents for a specific chat room.
+
+    Args:
+        chat_room_id (str): The ID of the chat room.
+
+    Returns:
+        list[KnowledgeDoc]: A list of knowledge document records.
     """
     from models.knowledge_doc_model import KnowledgeDoc
     
@@ -192,11 +221,17 @@ async def get_chat_room_documents(chat_room_id: str):
         return docs
 
 async def delete_document(doc_id: str, chat_room_id: str) -> bool:
-    """
-    Delete a document by ID.
-    1. Remove from DB.
-    2. Remove from File System.
-    3. Remove from Vector Store (using source metadata).
+    """Delete a document by ID.
+
+    Removes the document record from the database, deletes the file from the filesystem,
+    and removes associated embeddings from the vector store.
+
+    Args:
+        doc_id (str): The UUID of the document to delete.
+        chat_room_id (str): The ID of the chat room owning the document.
+
+    Returns:
+        bool: True if deletion was successful, False if the document was not found.
     """
     from models.knowledge_doc_model import KnowledgeDoc
     

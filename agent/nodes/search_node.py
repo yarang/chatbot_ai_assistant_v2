@@ -13,6 +13,20 @@ from repository.conversation_repository import get_history
 from agent.state import ChatState
 
 async def researcher_node(state: ChatState):
+    """Researcher agent node responsible for information retrieval.
+    
+    This agent determines whether to search internal knowledge or the web 
+    based on the user's query and context. It uses tools to fetch usage 
+    data and citates sources.
+
+    Args:
+        state (ChatState): The current state of the conversation graph, 
+            containing messages, chat room ID, and other metadata.
+
+    Returns:
+        dict: A dictionary containing the updated messages, token usage stats, 
+            and the applied system prompt.
+    """
     llm = get_llm(state.get("model_name"))
     search_tool = get_search_tool()
     chat_room_id = state.get("chat_room_id")
@@ -30,9 +44,13 @@ async def researcher_node(state: ChatState):
                 "For every user question, you MUST use tools to find information.\n"
                 "Workflow:\n"
                 "1) First, search using `search_internal_knowledge`.\n"
-                "2) If results are missing or insufficient, use `search_google`.\n"
+                "2) If results are missing or insufficient, use `tavily_search` (web search).\n"
                 "3) Summarize the findings and answer clearly.\n"
                 "4) Always cite sources when using `search_internal_knowledge`.\n"
+                "Tool Usage Guidelines:\n"
+                "- For 'today's news' or 'latest updates', set `time_range='day'` in `tavily_search`.\n"
+                "- Avoid using `start_date` or `end_date` unless strictly necessary (format: YYYY-MM-DD).\n"
+                "- If a search fails, retry with fewer parameters (e.g. just `query`).\n"
                 "Do NOT rely on internal knowledge alone.\n"
                 "Do NOT simulate user dialogue.\n"
                 f"Current time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"

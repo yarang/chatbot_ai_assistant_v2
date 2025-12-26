@@ -74,6 +74,17 @@ async def telegram_callback(request: Request):
 
 @router.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request, room_id: str = None):
+    """Render the user dashboard.
+
+    Displays the list of chat rooms and the conversation history for the selected room.
+
+    Args:
+        request (Request): The incoming request.
+        room_id (str, optional): The specific chat room ID to view. Defaults to None.
+
+    Returns:
+        HTMLResponse: The rendered dashboard template.
+    """
     user_data = get_current_user(request)
     if not user_data:
         return RedirectResponse(url="/login")
@@ -146,6 +157,17 @@ async def delete_chat_room_web(request: Request, room_id: str):
 
 @router.get("/personas", response_class=HTMLResponse)
 async def list_personas(request: Request, tab: str = "my"):
+    """Render the personas list page.
+
+    Shows personas owned by the user or public personas based on the tab selection.
+
+    Args:
+        request (Request): The incoming request.
+        tab (str): The tab to display ("my" or "public"). Defaults to "my".
+
+    Returns:
+        HTMLResponse: The rendered personas list template.
+    """
     user_data = get_current_user(request)
     if not user_data:
         return RedirectResponse(url="/login")

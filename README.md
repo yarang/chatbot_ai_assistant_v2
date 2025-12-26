@@ -267,29 +267,85 @@ python scripts/verify_db.py
 python scripts/ingest_docs.py --docs-dir ./documents
 ```
 
-## API 엔드포인트
+## API 사용 가이드
 
-### 웹 API
+본 프로젝트는 RESTful API를 제공하여 외부 시스템과의 연동을 지원합니다. 모든 API 요청에는 기본적으로 `Authorization` 헤더 또는 쿠키 세션이 필요할 수 있습니다 (개발 환경에서는 일부 완화됨).
 
-- `GET /` - 메인 대시보드
-- `GET /login` - 로그인 페이지
-- `GET /auth/telegram` - Telegram 인증 콜백
+### 1. QA (질의응답) API
 
-### Telegram API
+RAG 기반의 AI 어시스턴트에게 질문하고 답변을 받을 수 있습니다.
 
-- `POST /telegram/webhook` - Telegram webhook 엔드포인트
+**Endpoint:** `POST /api/qa/ask`
 
-### 페르소나 API
+**Curl 예시:**
 
-- `GET /api/personas` - 페르소나 목록 조회
-- `POST /api/personas` - 새 페르소나 생성
-- `PUT /api/personas/{id}` - 페르소나 수정
-- `DELETE /api/personas/{id}` - 페르소나 삭제
+```bash
+curl -X POST "http://localhost:8000/api/qa/ask" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "question": "이번 프로젝트의 아키텍처에 대해 설명해줘",
+           "chat_room_id": "YOUR_CHAT_ROOM_ID",
+           "user_id": "YOUR_USER_ID"
+         }'
+```
 
-### QA & RAG API
+**응답 예시:**
 
-- `POST /api/qa/query` - RAG 기반 질의응답
-- `POST /api/qa/ingest` - 문서 임베딩
+```json
+{
+  "answer": "본 프로젝트는 LangGraph를 기반으로 한 Multi-Agent 아키텍처를 채택하고 있습니다..."
+}
+```
+
+### 2. 페르소나(Persona) API
+
+AI 캐릭터(페르소나)를 관리하는 API입니다.
+
+#### 페르소나 생성
+
+**Endpoint:** `POST /api/persona/`
+
+**Curl 예시:**
+
+```bash
+curl -X POST "http://localhost:8000/api/persona/" \
+     -H "Content-Type: application/json" \
+     -H "Cookie: session=YOUR_SESSION_COOKIE" \
+     -d '{
+           "name": "친절한 수학 선생님",
+           "content": "당신은 초등학생에게 수학을 친절하게 가르쳐주는 선생님입니다.",
+           "description": "수학 개념을 쉽게 설명해주는 페르소나",
+           "is_public": true
+         }'
+```
+
+#### 페르소나 조회
+
+**Endpoint:** `GET /api/persona/{persona_id}`
+
+**Curl 예시:**
+
+```bash
+curl -X GET "http://localhost:8000/api/persona/123e4567-e89b-12d3-a456-426614174000" \
+     -H "Cookie: session=YOUR_SESSION_COOKIE"
+```
+
+#### 내 페르소나 목록 조회
+
+**Endpoint:** `GET /api/persona/user/me`
+
+**Curl 예시:**
+
+```bash
+curl -X GET "http://localhost:8000/api/persona/user/me" \
+     -H "Cookie: session=YOUR_SESSION_COOKIE"
+```
+
+### 3. Telegram Webhook
+
+텔레그램 봇의 업데이트를 수신하는 엔드포인트입니다. (직접 호출보다는 텔레그램 서버에 의해 호출됩니다.)
+
+**Endpoint:** `POST /telegram/webhook`
 
 ## 개발 로드맵
 

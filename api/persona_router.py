@@ -72,8 +72,17 @@ async def create_persona_endpoint(
     persona: PersonaCreate = Body(...),
     current_user: Dict[str, Any] = Depends(get_current_user_required),
 ):
-    """
-    Persona 생성
+    """Create a new Persona.
+
+    Args:
+        persona (PersonaCreate): The persona creation data.
+        current_user (Dict[str, Any]): The authenticated user.
+
+    Returns:
+        PersonaResponse: The created persona details.
+
+    Raises:
+        HTTPException: If the user is not found or other errors occur.
     """
     try:
         # Telegram ID를 사용하여 User ID를 찾거나 생성해야 함.
@@ -124,8 +133,17 @@ async def get_persona_endpoint(
     persona_id: str,
     current_user: Dict[str, Any] = Depends(get_current_user_required),
 ):
-    """
-    Persona 조회
+    """Retrieve a Persona by ID.
+
+    Args:
+        persona_id (str): The unique identifier of the persona.
+        current_user (Dict[str, Any]): The authenticated user.
+
+    Returns:
+        PersonaResponse: The persona details.
+
+    Raises:
+        HTTPException: If the persona is not found.
     """
     from repository.user_repository import get_user_by_telegram_id
     
@@ -152,8 +170,13 @@ async def get_persona_endpoint(
 async def get_my_personas_endpoint(
     current_user: Dict[str, Any] = Depends(get_current_user_required),
 ):
-    """
-    내 Persona 목록 조회
+    """Retrieve the current user's Personas.
+
+    Args:
+        current_user (Dict[str, Any]): The authenticated user.
+
+    Returns:
+        List[PersonaResponse]: A list of personas owned by the user.
     """
     from repository.user_repository import get_user_by_telegram_id
     

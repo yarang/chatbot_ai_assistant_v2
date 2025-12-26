@@ -7,13 +7,19 @@ router = APIRouter()
 
 @router.post("/ask")
 async def ask(payload: dict):
-    """
-    질문 및 답변 API
-    
-    Payload:
-        - question: 질문 내용 (필수)
-        - user_id: 사용자 ID (선택)
-        - chat_room_id: 채팅방 ID (필수)
+    """Answers a question using the RAG-based assistant.
+
+    This endpoint delegates the question to the conversational AI service, 
+    which may use internal knowledge, web search, or memory to generate an answer.
+
+    Args:
+        payload (dict):
+            - question (str): The user's question. (Required)
+            - user_id (str, optional): The user's ID.
+            - chat_room_id (str): The chat room ID. (Required)
+
+    Returns:
+        dict: A dictionary containing the "answer" key with the generated response.
     """
     question = payload.get("question", "").strip()
     user_id = payload.get("user_id")

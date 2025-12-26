@@ -58,12 +58,19 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     admin_ids: List[int] = []
     tavily_api_key: Optional[str] = None
+    secret_key: str  # Mandatory SECRET_KEY
+    use_local_llm: bool = Field(False, validation_alias="USE_LOCAL_LLM")
     
     # Nested settings
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     telegram: TelegramSettings = Field(default_factory=TelegramSettings)
     gemini: GeminiSettings = Field(default_factory=GeminiSettings)
     notion: NotionSettings = Field(default_factory=NotionSettings)
+    
+    # Local LLM (Exo, Ollama, etc.)
+    local_llm_base_url: Optional[str] = Field(None, validation_alias="LOCAL_LLM_BASE_URL")
+    local_llm_model: Optional[str] = Field("mlx-community/Qwen3-30B-A3B-4bit", validation_alias="LOCAL_LLM_MODEL")
+    local_llm_api_key: str = Field("markdown", validation_alias="LOCAL_LLM_API_KEY")  # Dummy key is often fine for local
 
     model_config = SettingsConfigDict(
         env_file=".env",

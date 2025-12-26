@@ -7,6 +7,9 @@ from repository.chat_room_repository import get_chat_room_by_id, update_chat_roo
 from repository.persona_repository import get_persona_by_id
 from core.vector_store import get_vector_store
 from agent.state import ChatState
+from core.logger import get_logger
+
+logger = get_logger(__name__)
 
 async def retrieve_data_node(state: ChatState):
     chat_room_id = state["chat_room_id"]
@@ -111,7 +114,7 @@ async def save_conversation_node(state: ChatState):
             # Use aadd_documents for async indexing supported by PGVector
             await vector_store.aadd_documents([user_doc, ai_doc])
         except Exception as e:
-            print(f"Error indexing conversation: {e}")
+            logger.error(f"Error indexing conversation: {e}")
              
     return {}
 
@@ -151,8 +154,6 @@ async def summarize_conversation_node(state: ChatState):
             
             # Track token usage for logging purposes (not saved to conversation)
             if hasattr(response, 'usage_metadata') and response.usage_metadata:
-                from core.logger import get_logger
-                logger = get_logger(__name__)
                 logger.info(f"Summary generation used {response.usage_metadata.get('input_tokens', 0)} input tokens and {response.usage_metadata.get('output_tokens', 0)} output tokens")
             
             # Update DB
@@ -161,7 +162,7 @@ async def summarize_conversation_node(state: ChatState):
             return {"summary": new_summary}
         except Exception as e:
             if "429" in str(e) or "ResourceExhausted" in str(e):
-                print(f"Skipping summary generation due to rate limit: {e}")
+                logger.warning(f"Skipping summary generation due to rate limit: {e}")
                 return {}
             raise e
         

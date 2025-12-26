@@ -6,10 +6,9 @@ import hmac
 import time
 from typing import Optional, Dict, Any
 
-# Secret key for signing (should be in config)
-# For now, using a hardcoded fallback if not in config, but ideally should be in env
+# Secret key for signing
 settings = get_settings()
-SECRET_KEY = settings.telegram.webhook_secret or "default-secret-key-change-me"
+SECRET_KEY = settings.secret_key
 serializer = URLSafeTimedSerializer(SECRET_KEY)
 
 def get_current_user(request: Request) -> Optional[Dict[str, Any]]:

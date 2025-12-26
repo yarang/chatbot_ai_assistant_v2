@@ -30,6 +30,7 @@ dependencies = [
     "pypdfium2>=5.1.0",
     "reportlab>=4.4.5",
     "aiofiles>=25.1.0",
+    "langchain-openai>=1.1.6",
 ]
 
 [project.optional-dependencies]
