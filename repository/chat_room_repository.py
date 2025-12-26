@@ -248,10 +248,10 @@ class ChatRoomRepository:
             bool: 성공 여부
         """
         import os
-        import logging
+        from core.logger import get_logger
         from models.knowledge_doc_model import KnowledgeDoc
 
-        logger = logging.getLogger(__name__)
+        logger = get_logger(__name__)
 
         if isinstance(chat_room_id, str):
             chat_room_id = uuid.UUID(chat_room_id)
