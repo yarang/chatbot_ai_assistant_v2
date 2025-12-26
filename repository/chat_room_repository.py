@@ -238,22 +238,48 @@ class ChatRoomRepository:
         chat_room_id: Union[uuid.UUID, str],
     ) -> bool:
         """
-        채팅방 삭제
-        
+        채팅방 삭제 (연관된 파일 시스템 정리 포함)
+
         Args:
             session: AsyncSession
             chat_room_id: 채팅방 ID
-            
+
         Returns:
             bool: 성공 여부
         """
+        import os
+        import logging
+        from models.knowledge_doc_model import KnowledgeDoc
+
+        logger = logging.getLogger(__name__)
+
         if isinstance(chat_room_id, str):
             chat_room_id = uuid.UUID(chat_room_id)
-            
+
         chat_room = await self.get_chat_room_by_id(session, chat_room_id)
         if not chat_room:
             return False
-            
+
+        # Clean up associated files before deleting the chat room
+        try:
+            # Get all knowledge docs for this chat room
+            stmt = select(KnowledgeDoc).where(KnowledgeDoc.chat_room_id == chat_room_id)
+            result = await session.execute(stmt)
+            docs = result.scalars().all()
+
+            # Delete physical files
+            for doc in docs:
+                if doc.file_path and os.path.exists(doc.file_path):
+                    try:
+                        os.remove(doc.file_path)
+                        logger.info(f"Deleted file: {doc.file_path}")
+                    except Exception as e:
+                        logger.error(f"Failed to delete file {doc.file_path}: {e}")
+        except Exception as e:
+            logger.error(f"Error cleaning up files for chat_room {chat_room_id}: {e}")
+            # Continue with deletion even if file cleanup fails
+
+        # Delete chat room (CASCADE will delete conversations, usage_logs, knowledge_docs)
         await session.delete(chat_room)
         await session.flush()
         return True

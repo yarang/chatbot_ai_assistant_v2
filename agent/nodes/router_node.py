@@ -4,6 +4,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_ollama import ChatOllama
 from core.llm import get_llm
+from core.config import get_settings
 from repository.conversation_repository import get_history
 from agent.state import ChatState, RouteDecision
 
@@ -80,10 +81,7 @@ async def supervisor_node(state: ChatState):
     messages.extend(state["messages"])
 
     # Hybrid Router Logic
-    use_local = os.getenv("USE_LOCAL_ROUTER", "false").lower() == "true"
-    local_url = os.getenv("LOCAL_LLM_BASE_URL", "http://172.16.1.101:11434")
-    local_model = os.getenv("LOCAL_LLM_MODEL", "llama-3.1-8b")
-    
+    settings = get_settings()
     result_decision = None
 
     async def run_chain(llm_instance):
@@ -91,11 +89,16 @@ async def supervisor_node(state: ChatState):
          chain = prompt | structured
          return await chain.ainvoke({"messages": messages})
 
-    if use_local:
+    if settings.local_llm.enabled:
         try:
-            logger.info(f"Using Local Router: {local_url} ({local_model})")
-            # Set a generic base_url for Ollama. 
-            local_llm = ChatOllama(base_url=local_url, model=local_model, temperature=0, timeout=10.0) 
+            logger.info(f"Using Local Router: {settings.local_llm.base_url} ({settings.local_llm.model})")
+            # Set a generic base_url for Ollama.
+            local_llm = ChatOllama(
+                base_url=settings.local_llm.base_url,
+                model=settings.local_llm.model,
+                temperature=0,
+                timeout=settings.local_llm.timeout
+            ) 
             result_decision = await run_chain(local_llm)
         except Exception as e:
             logger.warning(f"Local Router Failed, falling back to Gemini. Error: {e}")

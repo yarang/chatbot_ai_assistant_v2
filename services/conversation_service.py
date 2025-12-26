@@ -35,7 +35,8 @@ async def ask_question(user_id: Optional[str], chat_room_id: str, question: str,
         }
         
         # Invoke Graph
-        config = {"recursion_limit": 20}
+        settings = get_settings()
+        config = {"recursion_limit": settings.agent.recursion_limit}
         try:
             final_state = await graph.ainvoke(initial_state, config=config)
         except google_exceptions.ServiceUnavailable:
@@ -98,9 +99,8 @@ async def ask_question_stream(
         
         # Stream from graph
         buffer = StreamBuffer(time_threshold_sec=0.5, char_threshold=50)
-        # Stream from graph
 
-        config = {"recursion_limit": 20}
+        config = {"recursion_limit": settings.agent.recursion_limit}
         
         try:
             stream = graph.astream(initial_state, config=config, stream_mode="updates")
