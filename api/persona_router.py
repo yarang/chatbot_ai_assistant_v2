@@ -288,11 +288,14 @@ async def set_chat_room_persona_endpoint(
         if user_telegram_id in settings.admin_ids:
             is_owner = True
         else:
-            # Check if user has sent messages in this chat room
-            history = await get_history(chat_room_id, limit=100)
-            user_messages = [msg for msg in history if msg[0] == "user"]
-            if user_messages:
-                is_owner = True
+            # Check if user has participated in this chat room
+            from repository.chat_room_repository import get_chat_room_participants
+            from repository.user_repository import get_user_by_telegram_id
+            db_user = await get_user_by_telegram_id(user_telegram_id)
+            if db_user:
+                participants = await get_chat_room_participants(chat_room_id)
+                if any(p.id == db_user.id for p in participants):
+                    is_owner = True
 
     if not is_owner:
         raise HTTPException(status_code=403, detail="You don't have permission to modify this chat room")
