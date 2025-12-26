@@ -3,6 +3,7 @@ import os
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_openai import ChatOpenAI
+from langchain_ollama import ChatOllama
 from core.llm import get_llm
 from core.config import get_settings
 from repository.conversation_repository import get_history
@@ -101,13 +102,7 @@ async def supervisor_node(state: ChatState):
 
     # Hybrid Router Logic
     settings = get_settings()
-    
-    use_local_router = os.getenv("USE_LOCAL_ROUTER", "false").lower() == "true"
-    
-    # Exo default often http://localhost:52415/v1, user might have custom
-    local_url = settings.local_llm_base_url or os.getenv("LOCAL_LLM_BASE_URL", "http://localhost:52415/v1") 
-    local_model = settings.local_llm_model or os.getenv("LOCAL_LLM_MODEL", "mlx-community/Qwen3-30B-A3B-4bit") 
-    
+
     result_decision = None
 
     async def run_chain(llm_instance):
@@ -115,16 +110,15 @@ async def supervisor_node(state: ChatState):
          chain = prompt | structured
          return await chain.ainvoke({"messages": messages})
 
-    if use_local_router:
+    if settings.local_llm.enabled:
         try:
-            logger.info(f"Using Local Router (Exo/OpenAI): {local_url} ({local_model})")
-            # We use ChatOpenAI for Exo/Local generic OpenAI compatible
-            local_llm = ChatOpenAI(
-                base_url=local_url, 
-                api_key="markdown", # Dummy key
-                model=local_model, 
-                temperature=0, 
-                timeout=10.0
+            logger.info(f"Using Local Router: {settings.local_llm.base_url} ({settings.local_llm.model})")
+            # Set a generic base_url for Ollama.
+            local_llm = ChatOllama(
+                base_url=settings.local_llm.base_url,
+                model=settings.local_llm.model,
+                temperature=0,
+                timeout=settings.local_llm.timeout
             ) 
             result_decision = await run_chain(local_llm)
         except Exception as e:

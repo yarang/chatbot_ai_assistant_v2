@@ -313,9 +313,8 @@ Hello! I am your AI assistant. You can use the following commands:
                 file_name = doc.file_name or "unknown_file"
                 mime_type = doc.mime_type or ""
 
-                # Check file size limit (10MB)
-                MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-                if doc.file_size and doc.file_size > MAX_FILE_SIZE:
+                # Check file size limit
+                if doc.file_size and doc.file_size > settings.telegram.max_file_size:
                     await bot.send_message(
                         chat_id=chat.id,
                         text=f"❌ File too large. Maximum size: 10MB (Your file: {doc.file_size / 1024 / 1024:.1f}MB)"
@@ -406,13 +405,12 @@ Hello! I am your AI assistant. You can use the following commands:
             
             full_response = ""
             last_update_time = 0
-            update_interval = 0.5  # Seconds between updates
             chunk_count = 0
-            
+
             # List of sent messages to handle pagination
             sent_messages = [sent_msg]
             sent_texts = {sent_msg.message_id: "..."}
-            MESSAGE_LIMIT = 4000 # Telegram limit is 4096, keep buffer
+            MESSAGE_LIMIT = settings.telegram.message_limit
             
             # Determine user name for context
             user_name = db_user.first_name or db_user.username or "Unknown"
@@ -435,7 +433,7 @@ Hello! I am your AI assistant. You can use the following commands:
                 # Rate limit message updates
                 import time
                 current_time = time.time()
-                if current_time - last_update_time >= update_interval:
+                if current_time - last_update_time >= settings.telegram.update_interval:
                     try:
                         # Calculate how many messages we need
                         num_needed = (len(full_response) // MESSAGE_LIMIT) + 1
