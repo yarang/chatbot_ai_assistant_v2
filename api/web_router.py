@@ -9,6 +9,9 @@ from repository.persona_repository import get_user_personas, get_persona_by_id
 from repository.user_repository import get_user_by_telegram_id
 from core.database import get_async_session
 from repository.stats_repository import get_system_stats
+from core.logger import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -134,14 +137,19 @@ async def delete_chat_room_web(request: Request, room_id: str):
     # Admin Check
     user_id = int(user_data["id"])
     if user_id not in settings.admin_ids:
+        logger.warning(f"Unauthorized delete attempt: user_id={user_id}, room_id={room_id}")
         raise HTTPException(status_code=403, detail="Access denied")
-        
+
     from repository.chat_room_repository import delete_chat_room
-    
+
     success = await delete_chat_room(room_id)
     if not success:
+         logger.error(f"Failed to delete chat room: admin_id={user_id}, room_id={room_id}")
          raise HTTPException(status_code=404, detail="Chat room not found")
-         
+
+    # Audit log
+    logger.info(f"AUDIT: Admin {user_id} (telegram_id) deleted chat room {room_id}")
+
     return RedirectResponse(url="/dashboard", status_code=302)
 
 @router.get("/personas", response_class=HTMLResponse)

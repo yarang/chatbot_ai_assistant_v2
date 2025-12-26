@@ -107,7 +107,7 @@ async def supervisor_node(state: ChatState):
             llm = get_llm(state.get("model_name"))
             result_decision = await run_chain(llm)
         except Exception as e:
-            print(f"Supervisor failed: {e}")
+            logger.error(f"Supervisor failed: {e}")
             return {"next": "GeneralAssistant"}
 
     next_step = result_decision.next_agent
@@ -117,8 +117,8 @@ async def supervisor_node(state: ChatState):
     # Debug Logging
     if state["messages"]:
         last_msg = state["messages"][-1]
-        print(f"DEBUG: Last message content: {last_msg.content[:100]}...")
-        print(f"DEBUG: Supervisor routing to: {next_step}")
+        logger.debug(f"Last message content: {last_msg.content[:100] if last_msg.content else 'None'}...")
+        logger.debug(f"Supervisor routing to: {next_step}")
 
         # ROBUST FAIL-SAFE:
         if next_step == "FINISH" and isinstance(last_msg, HumanMessage):
@@ -132,20 +132,17 @@ async def supervisor_node(state: ChatState):
     if len(ai_messages) >= 3:
         # Check for exact matches
         if ai_messages[-1] == ai_messages[-2] == ai_messages[-3]:
-            print("Loop detected: Last 3 AI messages are identical. Forcing FINISH.")
+            logger.warning("Loop detected: Last 3 AI messages are identical. Forcing FINISH.")
             return {"next": "FINISH"}
 
         # Check for Notion page creation loop
         if ("Successfully created Notion page" in ai_messages[-1] or "Successfully updated Notion page" in ai_messages[-1]) and next_step == "NotionSearch":
-            print("Loop detected: Repeated Notion page operation attempt. Forcing FINISH.")
+            logger.warning("Loop detected: Repeated Notion page operation attempt. Forcing FINISH.")
             return {"next": "FINISH"}
-            
+
         if len(ai_messages) >= 4:
             if ai_messages[-1] == ai_messages[-3] and ai_messages[-2] == ai_messages[-4]:
-                    print("Loop detected: Alternating messages detected. Forcing FINISH.")
+                    logger.warning("Loop detected: Alternating messages detected. Forcing FINISH.")
                     return {"next": "FINISH"}
 
-    # DEBUG: Force Researcher
-    next_step = "Researcher"
-    
     return {"next": next_step}
