@@ -204,8 +204,6 @@ chatbot_ai_assistant_v2/
 │   ├── qa_router.py        # QA 및 RAG API
 │   ├── telegram_router.py  # 텔레그램 webhook
 │   └── web_router.py       # 웹 UI 라우터
-│   ├── telegram_router.py  # 텔레그램 webhook
-│   └── web_router.py       # 웹 UI 라우터
 ├── agent/                  # AI 에이전트 노드
 │   ├── nodes/
 │   │   ├── router_node.py  # Supervisor (라우팅)
