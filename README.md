@@ -64,13 +64,27 @@ cd chatbot_ai_assistant_v2
 cp .env.example .env
 ```
 
-`.env` 파일 예시:
+`.env` 파일 필수 설정 예시:
 ```env
 # App
 LOG_LEVEL=INFO
+
+# Gemini AI
 GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL_NAME=gemini-2.0-flash-exp
+
+# Telegram
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+TELEGRAM_BOT_USERNAME=your_bot_username
+TELEGRAM_WEBHOOK_URL=https://your-domain.ngrok-free.app/webhook
+
+# Search
 TAVILY_API_KEY=your_tavily_api_key
+
+# Access Control (Admin telegram IDs)
+ADMIN_IDS=[12345678, 87654321]
+
+# Notion (Optional)
 NOTION_API_KEY=your_notion_api_key
 NOTION_DATABASE_ID=your_notion_database_id
 
@@ -80,6 +94,23 @@ DATABASE_PORT=5432
 DATABASE_USER=postgres
 DATABASE_PASSWORD=postgres
 DATABASE_NAME=chatbot_db
+```
+
+**선택적 고급 설정**:
+```env
+# Telegram 메시지 처리 설정 (기본값 사용 가능)
+TELEGRAM_MESSAGE_LIMIT=4000          # 메시지 길이 제한 (기본: 4000)
+TELEGRAM_UPDATE_INTERVAL=0.5         # 메시지 업데이트 간격 (기본: 0.5초)
+TELEGRAM_MAX_FILE_SIZE=10485760      # 파일 업로드 크기 제한 (기본: 10MB)
+
+# Local LLM 하이브리드 라우터 (선택)
+LOCAL_LLM_ENABLED=false              # Local LLM 사용 여부 (기본: false)
+LOCAL_LLM_BASE_URL=http://172.16.1.101:11434
+LOCAL_LLM_MODEL=llama-3.1-8b
+LOCAL_LLM_TIMEOUT=10.0
+
+# Agent 설정
+AGENT_RECURSION_LIMIT=20             # LangGraph 재귀 깊이 제한 (기본: 20)
 ```
 
 ### 3. 의존성 설치
