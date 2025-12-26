@@ -61,13 +61,10 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting application with log level: {settings.log_level}")
 
     # Log Hybrid Router Configuration
-    use_local_router = os.getenv("USE_LOCAL_ROUTER", "false").lower() == "true"
-    if use_local_router:
-        local_url = os.getenv("LOCAL_LLM_BASE_URL", "http://172.16.1.101:11434")
-        local_model = os.getenv("LOCAL_LLM_MODEL", "llama-3.1-8b")
+    if settings.local_llm.enabled:
         logger.info(f"🚀 Hybrid Context-Aware Router: ENABLED (Prioritizing Local)")
-        logger.info(f"   - Local Endpoint: {local_url}")
-        logger.info(f"   - Local Model: {local_model}")
+        logger.info(f"   - Local Endpoint: {settings.local_llm.base_url}")
+        logger.info(f"   - Local Model: {settings.local_llm.model}")
         logger.info(f"   - Fallback: Google Gemini API")
     else:
         logger.info(f"🌐 Hybrid Context-Aware Router: DISABLED (Using Cloud Only)")
