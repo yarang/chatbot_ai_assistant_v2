@@ -91,17 +91,9 @@ async def create_persona_endpoint(
         # 따라서 세션의 telegram_id로 DB User를 조회해야 함.
         # 편의상 여기서는 repository가 telegram_id를 처리할 수 있도록 하거나,
         # security에서 DB User를 가져오도록 개선해야 함.
-        # 일단은 repository가 telegram_id (str) 처리를 지원하는지 확인 필요.
-        # repository는 uuid 변환을 시도하므로, telegram_id(숫자형 문자열)는 UUID가 아님.
-        # User Repository를 통해 UUID를 조회해야 함.
-        
-        # TODO: Security에서 DB User 조회 로직 추가 필요.
-        # 임시로 세션의 id를 그대로 사용하지만, 이는 Telegram ID임.
-        # Persona Model의 user_id는 UUID 타입임.
-        # 해결책: UserRepository를 사용하여 Telegram ID로 User UUID 조회.
-        
+        # Convert Telegram ID to User UUID
         from repository.user_repository import get_user_by_telegram_id
-        
+
         db_user = await get_user_by_telegram_id(int(current_user["id"]))
         if not db_user:
             raise HTTPException(status_code=400, detail="User not found in database")
@@ -293,16 +285,50 @@ async def set_chat_room_persona_endpoint(
     """
     채팅방에 Persona 설정
     """
-    # TODO: 채팅방 소유권 확인 로직 추가 필요
-    
+    # Verify chat room ownership
+    from repository.chat_room_repository import get_chat_room_by_id
+    from repository.conversation_repository import get_history
+    from core.config import get_settings
+
+    settings = get_settings()
+    user_telegram_id = int(current_user["id"])
+
+    # Get chat room
+    chat_room = await get_chat_room_by_id(chat_room_id)
+    if not chat_room:
+        raise HTTPException(status_code=404, detail="Chat room not found")
+
+    # Check ownership
+    # For private chats, telegram_chat_id equals user's telegram_id
+    # For groups, check if user is admin or has sent messages in this room
+    is_owner = False
+
+    if chat_room.type == "private":
+        # Private chat: telegram_chat_id should match user's telegram_id
+        is_owner = (chat_room.telegram_chat_id == user_telegram_id)
+    else:
+        # Group/Channel: check if user is admin or has participated
+        if user_telegram_id in settings.admin_ids:
+            is_owner = True
+        else:
+            # Check if user has participated in this chat room
+            from repository.chat_room_repository import get_chat_room_participants
+            from repository.user_repository import get_user_by_telegram_id
+            db_user = await get_user_by_telegram_id(user_telegram_id)
+            if db_user:
+                participants = await get_chat_room_participants(chat_room_id)
+                if any(p.id == db_user.id for p in participants):
+                    is_owner = True
+
+    if not is_owner:
+        raise HTTPException(status_code=403, detail="You don't have permission to modify this chat room")
+
+    # Set persona
     chat_room = await set_chat_room_persona(
         chat_room_id=chat_room_id,
         persona_id=request.persona_id,
     )
-    
-    if not chat_room:
-        raise HTTPException(status_code=404, detail="Chat room not found")
-    
+
     return {
         "message": "Persona set successfully",
         "chat_room_id": str(chat_room.id),
