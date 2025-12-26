@@ -302,10 +302,7 @@ Hello! I am your AI assistant. You can use the following commands:
                 if not text:
                     text = "Describe this image."
             except Exception as e:
-                print(f"Error processing photo: {e}")
-                await bot.send_message(chat_id=chat.id, text="Failed to process image.")
-            except Exception as e:
-                print(f"Error processing photo: {e}")
+                logger.error(f"Error processing photo: {e}")
                 await bot.send_message(chat_id=chat.id, text="Failed to process image.")
                 return
 
@@ -315,10 +312,18 @@ Hello! I am your AI assistant. You can use the following commands:
                 doc = message.document
                 file_name = doc.file_name or "unknown_file"
                 mime_type = doc.mime_type or ""
-                
+
+                # Check file size limit
+                if doc.file_size and doc.file_size > settings.telegram.max_file_size:
+                    await bot.send_message(
+                        chat_id=chat.id,
+                        text=f"❌ File too large. Maximum size: 10MB (Your file: {doc.file_size / 1024 / 1024:.1f}MB)"
+                    )
+                    return
+
                 # Check for supported types
                 if "pdf" in mime_type.lower() or "text/plain" in mime_type.lower() or file_name.lower().endswith(".pdf") or file_name.lower().endswith(".txt"):
-                    
+
                     await bot.send_message(chat_id=chat.id, text=f"📥 Processing document: {file_name}...\nThis may take a moment.")
                     
                     file_obj = await bot.get_file(doc.file_id)
@@ -400,13 +405,12 @@ Hello! I am your AI assistant. You can use the following commands:
             
             full_response = ""
             last_update_time = 0
-            update_interval = 0.5  # Seconds between updates
             chunk_count = 0
-            
+
             # List of sent messages to handle pagination
             sent_messages = [sent_msg]
             sent_texts = {sent_msg.message_id: "..."}
-            MESSAGE_LIMIT = 4000 # Telegram limit is 4096, keep buffer
+            MESSAGE_LIMIT = settings.telegram.message_limit
             
             # Determine user name for context
             user_name = db_user.first_name or db_user.username or "Unknown"
@@ -429,7 +433,7 @@ Hello! I am your AI assistant. You can use the following commands:
                 # Rate limit message updates
                 import time
                 current_time = time.time()
-                if current_time - last_update_time >= update_interval:
+                if current_time - last_update_time >= settings.telegram.update_interval:
                     try:
                         # Calculate how many messages we need
                         num_needed = (len(full_response) // MESSAGE_LIMIT) + 1
