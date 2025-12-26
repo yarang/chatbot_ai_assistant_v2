@@ -147,6 +147,10 @@ async def supervisor_node(state: ChatState):
     # ROBUST FAIL-SAFE:
     if state["messages"]:
         last_msg = state["messages"][-1]
+        logger.debug(f"Last message content: {last_msg.content[:100] if last_msg.content else 'None'}...")
+        logger.debug(f"Supervisor routing to: {next_step}")
+
+        # ROBUST FAIL-SAFE:
         if next_step == "FINISH" and isinstance(last_msg, HumanMessage):
             logger.warning("Supervisor selected FINISH after User message. Overriding to Researcher to ensure response.")
             next_step = "Researcher"
@@ -159,21 +163,17 @@ async def supervisor_node(state: ChatState):
     if len(ai_messages) >= 3:
         # Check for exact matches
         if ai_messages[-1] == ai_messages[-2] == ai_messages[-3]:
-            logger.warning("METRIC_LOOP_DETECTED: Last 3 AI messages are identical. Forcing FINISH.")
-            logger.info("METRIC_ROUTING_RESULT: FINISH")
+            logger.warning("Loop detected: Last 3 AI messages are identical. Forcing FINISH.")
             return {"next": "FINISH"}
 
         # Check for Notion page creation loop
         if ("Successfully created Notion page" in ai_messages[-1] or "Successfully updated Notion page" in ai_messages[-1]) and next_step == "NotionSearch":
-            logger.warning("METRIC_LOOP_DETECTED: Repeated Notion page operation attempt. Forcing FINISH.")
-            logger.info("METRIC_ROUTING_RESULT: FINISH")
+            logger.warning("Loop detected: Repeated Notion page operation attempt. Forcing FINISH.")
             return {"next": "FINISH"}
-            
+
         if len(ai_messages) >= 4:
             if ai_messages[-1] == ai_messages[-3] and ai_messages[-2] == ai_messages[-4]:
-                    logger.warning("METRIC_LOOP_DETECTED: Alternating messages detected. Forcing FINISH.")
-                    logger.info("METRIC_ROUTING_RESULT: FINISH")
-                    return {"next": "FINISH"}
+                logger.warning("Loop detected: Alternating messages detected. Forcing FINISH.")
+                return {"next": "FINISH"}
 
-    logger.info(f"METRIC_ROUTING_RESULT: {next_step}")
     return {"next": next_step}

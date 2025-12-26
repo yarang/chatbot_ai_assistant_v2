@@ -302,10 +302,7 @@ Hello! I am your AI assistant. You can use the following commands:
                 if not text:
                     text = "Describe this image."
             except Exception as e:
-                print(f"Error processing photo: {e}")
-                await bot.send_message(chat_id=chat.id, text="Failed to process image.")
-            except Exception as e:
-                print(f"Error processing photo: {e}")
+                logger.error(f"Error processing photo: {e}")
                 await bot.send_message(chat_id=chat.id, text="Failed to process image.")
                 return
 
@@ -315,10 +312,19 @@ Hello! I am your AI assistant. You can use the following commands:
                 doc = message.document
                 file_name = doc.file_name or "unknown_file"
                 mime_type = doc.mime_type or ""
-                
+
+                # Check file size limit (10MB)
+                MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+                if doc.file_size and doc.file_size > MAX_FILE_SIZE:
+                    await bot.send_message(
+                        chat_id=chat.id,
+                        text=f"❌ File too large. Maximum size: 10MB (Your file: {doc.file_size / 1024 / 1024:.1f}MB)"
+                    )
+                    return
+
                 # Check for supported types
                 if "pdf" in mime_type.lower() or "text/plain" in mime_type.lower() or file_name.lower().endswith(".pdf") or file_name.lower().endswith(".txt"):
-                    
+
                     await bot.send_message(chat_id=chat.id, text=f"📥 Processing document: {file_name}...\nThis may take a moment.")
                     
                     file_obj = await bot.get_file(doc.file_id)
