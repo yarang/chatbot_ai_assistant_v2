@@ -21,6 +21,7 @@ from api.qa_router import router as qa_router
 # Routers (will be implemented in api/)
 from api.telegram_router import router as telegram_router
 from api.web_router import router as web_router
+from api.file_upload_router import router as file_upload_router
 from core.config import get_settings
 from core.database import get_engine, init_db
 from core.exceptions import install_exception_handlers
@@ -100,12 +101,13 @@ def create_app() -> FastAPI:
         prefix="/api",
         tags=["api"],
     )
-    
+    app.include_router(file_upload_router, prefix="/api", tags=["file-upload"])
+
     app.include_router(web_router)
     app.include_router(telegram_router)
     app.include_router(qa_router)
     # app.include_router(persona_router) # Removed to prevent conflict with web_router and catch-all behavior. It is already included in api_router.
-    
+
     from api.web_rag_router import router as web_rag_router
     app.include_router(web_rag_router)
 
