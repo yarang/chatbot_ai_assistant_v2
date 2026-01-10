@@ -1,13 +1,16 @@
 from typing import List, Optional
+
+from langchain_core.output_parsers import PydanticOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from sqlalchemy import and_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, text
 from sqlalchemy.sql.expression import func
+
 from core.database import get_async_session
 from models.knowledge_doc_model import KnowledgeDoc
 from schemas import SearchFilters
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import PydanticOutputParser
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+
 
 # Using OpenAI Embeddings as requested (Size 1536)
 # Ensure OPENAI_API_KEY is in .env

@@ -1,7 +1,9 @@
 import os
-from langchain_tavily import TavilySearch
+
 from langchain_core.tools import Tool
+
 from core.config import get_settings
+
 
 def get_search_tool():
     """
@@ -19,9 +21,12 @@ def get_search_tool():
         print("Warning: TAVILY_API_KEY not found. Search tool may fail.")
     
     # Initialize the tool
-    # max_results=3 is a reasonable default
-    tool = TavilySearch(
-        max_results=3,
+    # Suggestion: Reduce max_results to 1 or 2 to save tokens for Groq context window
+    from langchain_community.tools.tavily_search import TavilySearchResults
+    
+    # We wrap it or use it directly. TavilySearchResults is a Tool compatible class.
+    tool = TavilySearchResults(
+        max_results=1,
         tavily_api_key=api_key
     )
     return tool

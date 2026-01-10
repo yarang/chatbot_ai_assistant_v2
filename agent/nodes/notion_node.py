@@ -1,19 +1,22 @@
 import json
 from datetime import datetime
-from typing import Dict, Any
-from agent.state import ChatState
-from llm.chains.notion_chain import notion_search_chain
+from typing import Any, Dict
+
 from langchain_core.messages import AIMessage
-from core.config import get_settings
-from core.notion_client import NotionClient
-from core.llm import get_llm
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers.openai_functions import JsonOutputFunctionsParser
+from langchain_core.prompts import ChatPromptTemplate
+
+from agent.state import ChatState
+from core.config import get_settings
+from core.llm import get_llm
 from core.logger import get_logger
+from core.notion_client import NotionClient
+from llm.chains.notion_chain import notion_search_chain
 
 logger = get_logger(__name__)
 
 from langchain_core.messages import AIMessage, HumanMessage
+
 
 async def notion_node(state: ChatState) -> Dict[str, Any]:
     """

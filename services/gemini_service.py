@@ -1,5 +1,7 @@
-from typing import List, Tuple, Dict, Optional
+from typing import Dict, List, Optional, Tuple
+
 import google.generativeai as genai
+
 from core.config import get_settings
 from core.logger import get_logger
 

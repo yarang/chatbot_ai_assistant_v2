@@ -1,6 +1,9 @@
 import asyncio
+
 from langchain_core.documents import Document
+
 from core.vector_store import get_vector_store
+
 
 async def ingest_docs():
     print("Initializing Vector Store...")

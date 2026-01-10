@@ -1,6 +1,7 @@
 import logging
-import sys
 import os
+import sys
+
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -9,20 +10,22 @@ load_dotenv(override=True)
 # Monkeypatches removed as part of cleanup
 
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from core.config import get_settings
-from core.logger import configure_logging
-from core.middleware import add_middlewares
-from core.exceptions import install_exception_handlers
+
 from api import router as api_router
-from core.database import get_engine, init_db
+from api.persona_router import router as persona_router
+from api.qa_router import router as qa_router
 
 # Routers (will be implemented in api/)
 from api.telegram_router import router as telegram_router
-from api.qa_router import router as qa_router
-from api.persona_router import router as persona_router
 from api.web_router import router as web_router
+from core.config import get_settings
+from core.database import get_engine, init_db
+from core.exceptions import install_exception_handlers
+from core.logger import configure_logging
+from core.middleware import add_middlewares
 
 
 @asynccontextmanager

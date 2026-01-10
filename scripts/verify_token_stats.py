@@ -1,16 +1,17 @@
 import asyncio
-import sys
 import os
+import sys
 import uuid
 
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.database import get_async_session, init_db
-from models.user_model import User
 from models.chat_room_model import ChatRoom
 from models.conversation_model import Conversation
+from models.user_model import User
 from repository.stats_repository import get_system_stats
+
 
 async def verify_token_stats():
     print("Initializing database...")

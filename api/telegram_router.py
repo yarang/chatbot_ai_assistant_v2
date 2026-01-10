@@ -1,14 +1,21 @@
-from fastapi import APIRouter, Request, BackgroundTasks
 import asyncio
 from typing import Dict
-from telegram import Update, Bot
-from core.config import get_settings
+
+from fastapi import APIRouter, BackgroundTasks, Request
+from langchain_core.messages import AIMessage, HumanMessage
+from telegram import Bot, Update
+
 from agent.graph import graph
+from core.config import get_settings
 from core.logger import get_logger
-from langchain_core.messages import HumanMessage, AIMessage
+from repository.chat_room_repository import set_chat_room_persona, upsert_chat_room
+from repository.persona_repository import (
+    create_persona,
+    get_persona_by_id,
+    get_public_personas,
+    get_user_personas,
+)
 from repository.user_repository import upsert_user
-from repository.chat_room_repository import upsert_chat_room, set_chat_room_persona
-from repository.persona_repository import get_public_personas, get_persona_by_id, create_persona, get_user_personas
 
 logger = get_logger(__name__)
 
@@ -208,8 +215,9 @@ Hello! I am your AI assistant. You can use the following commands:
         if text and text.startswith("/summary"):
             await bot.send_message(chat_id=chat.id, text="대화 내용을 요약하고 있습니다. 잠시만 기다려주세요...")
             try:
-                from services.conversation_service import summarize_chat_room
                 from telegram.helpers import escape_markdown
+
+                from services.conversation_service import summarize_chat_room
                 
                 summary = await summarize_chat_room(chat_room_id=db_chat_room.id, user_id=db_user.id)
                 # Use MarkdownV2 for better stability, escape the LLM output
@@ -230,8 +238,9 @@ Hello! I am your AI assistant. You can use the following commands:
         if text and text.startswith("/files"):
             # List known documents
             try:
-                from services.knowledge_service import get_chat_room_documents
                 from telegram.helpers import escape_markdown
+
+                from services.knowledge_service import get_chat_room_documents
                 
                 logger.info(f"Listing files for chat_room_id={db_chat_room.id}")
                 docs = await get_chat_room_documents(str(db_chat_room.id))
@@ -285,6 +294,7 @@ Hello! I am your AI assistant. You can use the following commands:
 
         # 4. Invoke Graph with Streaming
         import base64
+
         from services.conversation_service import ask_question_stream
         
         # Check for photo
@@ -332,6 +342,7 @@ Hello! I am your AI assistant. You can use the following commands:
                     # knowledge_service expects UploadFile but we can adapt it or change service to accept bytes.
                     # Adapting here:
                     from io import BytesIO
+
                     from fastapi import UploadFile
                     
                     file_bytes = await file_obj.download_as_bytearray()

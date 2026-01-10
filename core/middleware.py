@@ -1,5 +1,6 @@
-import time
 import logging
+import time
+
 from fastapi import FastAPI, Request
 
 logger = logging.getLogger("middleware")

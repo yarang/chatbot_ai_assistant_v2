@@ -1,13 +1,16 @@
 import asyncio
 import os
 from uuid import uuid4
-from reportlab.pdfgen import canvas
-from services.knowledge_service import process_uploaded_file
-from repository.user_repository import upsert_user
-from repository.chat_room_repository import upsert_chat_room
-from core.database import get_async_session
-from tools.retrieval_tool import get_retrieval_tool
+
 from fastapi import UploadFile
+from reportlab.pdfgen import canvas
+
+from core.database import get_async_session
+from repository.chat_room_repository import upsert_chat_room
+from repository.user_repository import upsert_user
+from services.knowledge_service import process_uploaded_file
+from tools.retrieval_tool import get_retrieval_tool
+
 
 # Mock UploadFile
 class MockUploadFile(UploadFile):

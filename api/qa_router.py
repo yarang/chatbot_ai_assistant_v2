@@ -1,6 +1,6 @@
 from fastapi import APIRouter
-from services.conversation_service import ask_question
 
+from services.conversation_service import ask_question
 
 router = APIRouter()
 

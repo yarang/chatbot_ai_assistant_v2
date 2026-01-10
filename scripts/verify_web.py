@@ -1,7 +1,9 @@
-from fastapi.testclient import TestClient
-from main import app
 import os
 import sys
+
+from fastapi.testclient import TestClient
+
+from main import app
 
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))

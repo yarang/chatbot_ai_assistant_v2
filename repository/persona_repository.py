@@ -1,7 +1,8 @@
 import uuid
 from typing import List, Optional, Union
+
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_
 
 from core.database import get_async_session
 from models.persona_model import Persona

@@ -1,8 +1,8 @@
 import asyncio
-import time
-from unittest.mock import MagicMock, AsyncMock, patch
-import sys
 import os
+import sys
+import time
+from unittest.mock import AsyncMock, MagicMock, patch
 
 # Add project root to path
 sys.path.append(os.getcwd())

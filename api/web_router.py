@@ -1,15 +1,20 @@
-from fastapi import APIRouter, Request, Depends, HTTPException, status, Form
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+
 from core.config import get_settings
-from core.security import get_current_user, check_telegram_authorization, create_session_token
+from core.database import get_async_session
+from core.logger import get_logger
+from core.security import (
+    check_telegram_authorization,
+    create_session_token,
+    get_current_user,
+)
 from repository.chat_room_repository import get_chat_room_by_telegram_id
 from repository.conversation_repository import get_history
-from repository.persona_repository import get_user_personas, get_persona_by_id
-from repository.user_repository import get_user_by_telegram_id
-from core.database import get_async_session
+from repository.persona_repository import get_persona_by_id, get_user_personas
 from repository.stats_repository import get_system_stats
-from core.logger import get_logger
+from repository.user_repository import get_user_by_telegram_id
 
 logger = get_logger(__name__)
 
@@ -92,9 +97,10 @@ async def dashboard(request: Request, room_id: str = None):
     if not user_data:
         return RedirectResponse(url="/login")
         
-    from repository.chat_room_repository import get_user_chat_rooms, get_chat_room_by_id
-    from repository.user_repository import get_user_by_telegram_id
     import uuid
+
+    from repository.chat_room_repository import get_chat_room_by_id, get_user_chat_rooms
+    from repository.user_repository import get_user_by_telegram_id
 
     telegram_id = int(user_data["id"])
     db_user = await get_user_by_telegram_id(telegram_id)
@@ -180,7 +186,7 @@ async def list_personas(request: Request, tab: str = "my"):
     if not user_data:
         return RedirectResponse(url="/login")
     
-    from repository.persona_repository import get_user_personas, get_public_personas
+    from repository.persona_repository import get_public_personas, get_user_personas
     from repository.user_repository import get_user_by_telegram_id
 
     
@@ -323,10 +329,15 @@ async def view_persona(request: Request, persona_id: str):
     if not user_data:
         return RedirectResponse(url="/login")
         
+    import uuid
+
+    from repository.evaluation_repository import (
+        get_persona_average_score,
+        get_persona_evaluations,
+        get_user_evaluation_for_persona,
+    )
     from repository.persona_repository import get_persona_by_id
     from repository.user_repository import get_user_by_telegram_id
-    from repository.evaluation_repository import get_persona_evaluations, get_user_evaluation_for_persona, get_persona_average_score
-    import uuid
     
     db_user = await get_user_by_telegram_id(int(user_data["id"]))
     persona = None
@@ -368,9 +379,10 @@ async def evaluate_persona_web(
     if not user_data:
         return RedirectResponse(url="/login", status_code=302)
         
-    from repository.user_repository import get_user_by_telegram_id
-    from repository.evaluation_repository import create_evaluation
     import uuid
+
+    from repository.evaluation_repository import create_evaluation
+    from repository.user_repository import get_user_by_telegram_id
     
     db_user = await get_user_by_telegram_id(int(user_data["id"]))
     if db_user:

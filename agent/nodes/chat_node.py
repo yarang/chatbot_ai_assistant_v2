@@ -1,7 +1,10 @@
 from datetime import datetime
+
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from core.llm import get_llm
+
 from agent.state import ChatState
+from core.llm import get_llm
+
 
 async def general_assistant_node(state: ChatState):
     llm = get_llm(state.get("model_name"))
@@ -11,7 +14,7 @@ async def general_assistant_node(state: ChatState):
     
     prompt = ChatPromptTemplate.from_messages(
         [
-            ("system", persona_content + f"\nIMPORTANT: Do not simulate the user. Do not generate 'User:' or 'Human:' dialogue.\nCurrent Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"),
+            ("system", persona_content + f"\nIMPORTANT: Do not simulate the user. Do not generate 'User:' or 'Human:' dialogue.\nIMPORTANT: Keep your answers CONCISE. Limit response length to max 1 page. Avoid excessive verbosity.\nCurrent Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"),
             MessagesPlaceholder(variable_name="messages"),
         ]
     )
@@ -31,7 +34,7 @@ async def general_assistant_node(state: ChatState):
                  system_prompt_str += m.content + "\n"
     
     # We can also just use the persona_content constructed above + instruction
-    full_system_prompt = persona_content + f"\nIMPORTANT: Do not simulate the user. Do not generate 'User:' or 'Human:' dialogue.\nCurrent Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    full_system_prompt = persona_content + f"\nIMPORTANT: Do not simulate the user. Do not generate 'User:' or 'Human:' dialogue.\nIMPORTANT: Keep your answers CONCISE and to the point. Even when detailed information is requested, limit the response length to appropriately summary level (max 1 page equivalent). Avoid excessive verbosity.\nCurrent Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
     response = await chain.ainvoke({"messages": messages})
     

@@ -1,16 +1,19 @@
 from datetime import datetime
+
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
+
 from core.llm import get_llm
 from core.logger import get_logger
 
 logger = get_logger(__name__)
-from tools.search_tool import get_search_tool
-from tools.retrieval_tool import get_retrieval_tool
-from tools.memory_tool import get_memory_tool
-from tools.time_tool import get_time_tool
-from repository.conversation_repository import get_history
 from agent.state import ChatState
+from repository.conversation_repository import get_history
+from tools.memory_tool import get_memory_tool
+from tools.retrieval_tool import get_retrieval_tool
+from tools.search_tool import get_search_tool
+from tools.time_tool import get_time_tool
+
 
 async def researcher_node(state: ChatState):
     """Researcher agent node responsible for information retrieval.
@@ -53,6 +56,7 @@ async def researcher_node(state: ChatState):
                 "- If a search fails, retry with fewer parameters (e.g. just `query`).\n"
                 "Do NOT rely on internal knowledge alone.\n"
                 "Do NOT simulate user dialogue.\n"
+                "IMPORTANT: Keep your answers CONCISE and to the point. Even if detailed information is requested, limit the response length to appropriately summary level (max 1 page equivalent). Avoid excessive verbosity.\n"
                 f"Current time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             ),
             MessagesPlaceholder(variable_name="messages"),
@@ -65,11 +69,14 @@ async def researcher_node(state: ChatState):
     last_message = state["messages"][-1]
     force_retrieval = isinstance(last_message, HumanMessage)
     
-    if force_retrieval:
-        # Force the specific tool
+    from core.config import get_settings
+    settings = get_settings()
+
+    if force_retrieval and settings.llm_api.lower() != "groq":
+        # Force the specific tool (except for Groq, which handles strict forcing poorly with OpenAI client wrapper sometimes)
         chain = prompt | llm.bind_tools(tools, tool_choice="search_internal_knowledge")
     else:
-        # Auto mode for subsequent turns (e.g. after tool execution)
+        # Auto mode for subsequent turns (e.g. after tool execution) or for Groq
         chain = prompt | llm.bind_tools(tools)
     
     # Construct messages including history and summary
@@ -79,8 +86,12 @@ async def researcher_node(state: ChatState):
         
     # Fetch recent history
     chat_room_id = state["chat_room_id"]
-    history_tuples = await get_history(chat_room_id, limit=10)
+    history_tuples = await get_history(chat_room_id, limit=5)
     for role, content, name, _ in history_tuples:
+        # Truncate long messages in history to save tokens
+        if len(content) > 1000:
+             content = content[:1000] + "...(truncated)"
+             
         if role == "user":
             messages.append(HumanMessage(content=content, name=name))
         else:
@@ -120,6 +131,7 @@ async def researcher_node(state: ChatState):
         "IMPORTANT: If the user asks for ANY information, you MUST use the provided tools (search_internal_knowledge or search_google) to find it. Do not rely on your internal knowledge alone.\n"
         "IMPORTANT: When using the 'search_internal_knowledge' tool, you MUST cite the source of the information in your response. The tool output provides the source (e.g., 'Source: ...'). Append the source at the end of your answer.\n"
         "IMPORTANT: Do not simulate the user. Do not generate 'User:' or 'Human:' dialogue.\n"
+        "IMPORTANT: Keep your answers CONCISE. Limit response length to max 1 page. Avoid excessive verbosity.\n"
         f"Current Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     )
     

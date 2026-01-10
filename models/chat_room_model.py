@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Optional, List
 from datetime import datetime
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, BigInteger, ForeignKey, TIMESTAMP, func
+from typing import TYPE_CHECKING, List, Optional
+
+from sqlalchemy import TIMESTAMP, BigInteger, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
 

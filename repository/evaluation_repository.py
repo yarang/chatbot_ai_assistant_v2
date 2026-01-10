@@ -1,7 +1,7 @@
-from typing import Optional, List
+from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select, and_, func
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import selectinload
 
 from core.database import get_async_session

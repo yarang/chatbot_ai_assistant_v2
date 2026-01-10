@@ -1,9 +1,11 @@
-import sys
 import os
+import sys
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from core.config import get_settings
 import os
+
+from core.config import get_settings
 
 try:
     settings = get_settings()

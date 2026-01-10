@@ -1,19 +1,21 @@
 import os
-import aiofiles
-import pypdf
-import pydantic_core
 from datetime import datetime
 from uuid import UUID
+
+import aiofiles
+import pydantic_core
+import pypdf
 from fastapi import UploadFile
-from sqlalchemy import select, delete
-from core.database import get_async_session
-from core.config import get_settings
-from core.vector_store import get_vector_store
-from core.logger import get_logger
-from core.llm import get_llm
 from langchain_core.documents import Document
 from langchain_core.messages import HumanMessage
 from langchain_core.output_parsers import StrOutputParser
+from sqlalchemy import delete, select
+
+from core.config import get_settings
+from core.database import get_async_session
+from core.llm import get_llm
+from core.logger import get_logger
+from core.vector_store import get_vector_store
 
 logger = get_logger(__name__)
 
@@ -68,8 +70,9 @@ async def process_pdf_smart(file_path: str) -> str:
     if is_low_quality:
         logger.info(f"PDF text content low ({len(text_content)} chars). Switching to Smart Ingestion (Vision).")
         try:
-            import pypdfium2 as pdfium
             import base64
+
+            import pypdfium2 as pdfium
             
             pdf = pdfium.PdfDocument(file_path)
             vision_text = []

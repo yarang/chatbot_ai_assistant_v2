@@ -1,7 +1,9 @@
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from core.notion_client import NotionClient
+from langchain_core.prompts import ChatPromptTemplate
+
 from core.llm import get_llm
+from core.notion_client import NotionClient
+
 
 async def notion_search_chain(query: str, model_name: str = None) -> str:
     """

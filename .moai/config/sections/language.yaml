@@ -1,0 +1,12 @@
+# Language Configuration
+# Format: YAML
+#
+# This file defines language preferences for the MoAI-ADK system.
+#
+# conversation_language: Language for user-facing interactions and documentation
+# code_language: Language for code comments and technical documentation
+# agent_prompt_language: Language for internal agent instructions (keep as "en" for cost optimization)
+
+conversation_language: ko
+code_language: en
+agent_prompt_language: en
