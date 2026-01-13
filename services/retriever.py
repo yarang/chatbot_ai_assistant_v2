@@ -1,3 +1,4 @@
+import logging
 from typing import List, Optional
 
 from langchain_core.output_parsers import PydanticOutputParser
@@ -8,8 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.expression import func
 
 from core.database import get_async_session
+from core.logger import get_logger
 from models.knowledge_doc_model import KnowledgeDoc
 from schemas import SearchFilters
+
+logger = get_logger(__name__)
 
 
 # Using OpenAI Embeddings as requested (Size 1536)
@@ -44,13 +48,26 @@ class RetrievalService:
         """Extract structured filters from natural language query."""
         return await self.chain.ainvoke({"query": query})
 
-    async def search_documents(self, user_query: str, session: AsyncSession, limit: int = 5) -> List[KnowledgeDoc]:
+    async def search_documents(
+        self, user_query: str, session: AsyncSession, limit: int = 5
+    ) -> List[KnowledgeDoc]:
         """
         Perform a search using Metadata Pre-filtering Strategy.
+
+        Args:
+            user_query: Natural language query from user
+            session: Database session
+            limit: Maximum number of results to return
+
+        Returns:
+            List of KnowledgeDoc objects matching the query
         """
         # 1. Extract Filters
         filters = await self.extract_filters(user_query)
-        print(f"DEBUG: Extracted Filters: {filters}")
+        logger.debug(f"Extracted filters: query={filters.query_text}, "
+                    f"source_type={filters.source_type}, "
+                    f"date_range={filters.start_date} to {filters.end_date}, "
+                    f"tags={filters.tags}")
 
         # 2. Get Query Embedding
         query_vector = await self.embeddings.aembed_query(filters.query_text)
@@ -98,6 +115,18 @@ class RetrievalService:
         return docs
 
 # Standalone function for easy usage
-async def retrieve_with_filters(user_query: str, session: AsyncSession) -> List[KnowledgeDoc]:
-    service = RetentionService()
+async def retrieve_with_filters(
+    user_query: str, session: AsyncSession
+) -> List[KnowledgeDoc]:
+    """
+    Convenience function for document retrieval with filter extraction.
+
+    Args:
+        user_query: Natural language query from user
+        session: Database session
+
+    Returns:
+        List of KnowledgeDoc objects matching the query
+    """
+    service = RetrievalService()
     return await service.search_documents(user_query, session)
