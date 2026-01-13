@@ -8,14 +8,61 @@
     <a href="/personas/new" class="btn btn-primary">Create New Persona</a>
 </div>
 
-<div style="margin-bottom: 2rem; border-bottom: 1px solid var(--border-color);">
-    <a href="/personas?tab=my" style="display: inline-block; padding: 0.75rem 1.5rem; text-decoration: none; color: {% if active_tab == 'my' %}var(--primary-color){% else %}var(--text-muted){% endif %}; border-bottom: 2px solid {% if active_tab == 'my' %}var(--primary-color){% else %}transparent{% endif %}; font-weight: 600;">My Personas</a>
-    <a href="/personas?tab=public" style="display: inline-block; padding: 0.75rem 1.5rem; text-decoration: none; color: {% if active_tab == 'public' %}var(--primary-color){% else %}var(--text-muted){% endif %}; border-bottom: 2px solid {% if active_tab == 'public' %}var(--primary-color){% else %}transparent{% endif %}; font-weight: 600;">Public Personas</a>
+<!-- Search and Filter Bar -->
+<div class="filter-bar">
+    <div class="search-container" style="flex: 1; min-width: 250px; margin-bottom: 0;">
+        <span class="search-icon">🔍</span>
+        <input
+            type="text"
+            id="search-input"
+            class="search-input"
+            placeholder="Search personas..."
+            aria-label="Search personas"
+        >
+    </div>
+
+    <div class="filter-group">
+        <span class="filter-label">Sort by:</span>
+        <select id="sort-select" aria-label="Sort personas">
+            <option value="name">Name (A-Z)</option>
+            <option value="name-desc">Name (Z-A)</option>
+            <option value="created">Newest First</option>
+            <option value="created-desc">Oldest First</option>
+        </select>
+    </div>
+
+    <div class="filter-group">
+        <span class="filter-label">Filter:</span>
+        <label style="display: inline-flex; align-items: center; gap: 0.25rem; margin: 0; cursor: pointer;">
+            <input type="checkbox" id="filter-public">
+            <span>Public</span>
+        </label>
+        <label style="display: inline-flex; align-items: center; gap: 0.25rem; margin: 0; cursor: pointer;">
+            <input type="checkbox" id="filter-private">
+            <span>Private</span>
+        </label>
+    </div>
 </div>
 
-<div class="grid">
+<!-- Tabs -->
+<div class="tabs">
+    <a href="/personas?tab=my" class="tab {% if active_tab == 'my' %}tab-active{% endif %}">My Personas</a>
+    <a href="/personas?tab=public" class="tab {% if active_tab == 'public' %}tab-active{% endif %}">Public Personas</a>
+</div>
+
+<!-- Results Count -->
+<div id="results-count" style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: var(--spacing-md);">
+    Showing <span id="visible-count">{{ personas|length }}</span> of <span id="total-count">{{ personas|length }}</span> personas
+</div>
+
+<!-- Persona Grid -->
+<div class="grid" id="persona-grid">
     {% for persona in personas %}
-    <div class="card">
+    <div class="card card-interactive persona-card"
+         data-name="{{ persona.name|lower }}"
+         data-description="{{ (persona.description or '')|lower }}"
+         data-created="{{ persona.created_at.isoformat() }}"
+         data-public="{{ 'true' if persona.is_public else 'false' }}">
         <div class="flex-between mb-4">
             <h2 style="font-size: 1.25rem; font-weight: 600; margin: 0;">
                 <a href="/personas/{{ persona.id }}" style="text-decoration: none; color: inherit;">{{ persona.name }}</a>
@@ -26,24 +73,157 @@
             <span class="badge badge-private">Private</span>
             {% endif %}
         </div>
-        <p style="color: var(--text-muted); margin-bottom: 1rem; height: 3rem; overflow: hidden;">
+        <p style="color: var(--text-muted); margin-bottom: 1rem; height: 3rem; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
             {{ persona.description or 'No description' }}
         </p>
+        <p style="font-size: 0.75rem; color: var(--text-light); margin-bottom: 1rem;">
+            Created {{ persona.created_at.strftime('%Y-%m-%d') }}
+        </p>
         <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
-            <a href="/personas/{{ persona.id }}" class="btn" style="color: var(--primary-color);">View</a>
-            <a href="/personas/{{ persona.id }}/edit" class="btn" style="color: var(--text-muted);">Edit</a>
+            <a href="/personas/{{ persona.id }}" class="btn btn-secondary">View</a>
+            {% if active_tab == 'my' %}
+            <a href="/personas/{{ persona.id }}/edit" class="btn btn-secondary">Edit</a>
             <form method="POST" action="/personas/{{ persona.id }}/delete" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this persona?');">
-                <button type="submit" class="btn btn-danger">Delete</button>
+                <button type="submit" class="btn btn-danger" aria-label="Delete persona {{ persona.name }}">Delete</button>
             </form>
+            {% endif %}
         </div>
     </div>
     {% endfor %}
 </div>
 
+<!-- Empty State -->
 {% if not personas %}
-<div style="text-align: center; padding: 3rem 0;">
-    <p style="color: var(--text-muted); font-size: 1.125rem;">You haven't created any personas yet.</p>
-    <a href="/personas/new" style="color: var(--primary-color); margin-top: 0.5rem; display: inline-block;">Create your first persona</a>
+<div class="empty-state">
+    <div class="empty-state-icon">📝</div>
+    <h3 class="empty-state-title">No personas found</h3>
+    <p class="empty-state-description">
+        {% if active_tab == 'my' %}
+            You haven't created any personas yet.
+        {% else %}
+            There are no public personas available.
+        {% endif %}
+    </p>
+    {% if active_tab == 'my' %}
+    <a href="/personas/new" class="btn btn-primary">Create your first persona</a>
+    {% endif %}
 </div>
 {% endif %}
+
+<!-- No Results State (hidden by default) -->
+<div id="no-results" class="empty-state" style="display: none;">
+    <div class="empty-state-icon">🔍</div>
+    <h3 class="empty-state-title">No matching personas</h3>
+    <p class="empty-state-description">Try adjusting your search or filters</p>
+    <button id="clear-filters" class="btn btn-secondary">Clear Filters</button>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('search-input');
+    const sortSelect = document.getElementById('sort-select');
+    const filterPublic = document.getElementById('filter-public');
+    const filterPrivate = document.getElementById('filter-private');
+    const personaGrid = document.getElementById('persona-grid');
+    const cards = personaGrid.querySelectorAll('.persona-card');
+    const visibleCount = document.getElementById('visible-count');
+    const noResults = document.getElementById('no-results');
+    const clearFilters = document.getElementById('clear-filters');
+
+    // Check initial checkbox state based on active tab
+    const activeTab = '{{ active_tab }}';
+    if (activeTab === 'my') {
+        filterPrivate.checked = true;
+        filterPublic.checked = true;
+    } else if (activeTab === 'public') {
+        filterPublic.checked = true;
+        filterPrivate.checked = false;
+    }
+
+    // Filter function
+    function filterPersonas() {
+        const searchTerm = searchInput.value.toLowerCase();
+        const sortValue = sortSelect.value;
+        const showPublic = filterPublic.checked;
+        const showPrivate = filterPrivate.checked;
+
+        let visibleCards = [];
+
+        cards.forEach(card => {
+            const name = card.dataset.name;
+            const description = card.dataset.description;
+            const isPublic = card.dataset.public === 'true';
+
+            // Search filter
+            const matchesSearch = name.includes(searchTerm) || description.includes(searchTerm);
+
+            // Visibility filter
+            const matchesVisibility = (isPublic && showPublic) || (!isPublic && showPrivate);
+
+            if (matchesSearch && matchesVisibility) {
+                card.style.display = '';
+                visibleCards.push(card);
+            } else {
+                card.style.display = 'none';
+            }
+        });
+
+        // Sort
+        visibleCards.sort((a, b) => {
+            const aName = a.querySelector('h2 a').textContent;
+            const bName = b.querySelector('h2 a').textContent;
+            const aCreated = new Date(a.dataset.created);
+            const bCreated = new Date(b.dataset.created);
+
+            switch (sortValue) {
+                case 'name':
+                    return aName.localeCompare(bName);
+                case 'name-desc':
+                    return bName.localeCompare(aName);
+                case 'created':
+                    return bCreated - aCreated;
+                case 'created-desc':
+                    return aCreated - bCreated;
+                default:
+                    return 0;
+            }
+        });
+
+        // Reorder DOM
+        visibleCards.forEach(card => {
+            personaGrid.appendChild(card);
+        });
+
+        // Update count and show/hide no results
+        const count = visibleCards.length;
+        visibleCount.textContent = count;
+
+        if (count === 0 && cards.length > 0) {
+            noResults.style.display = '';
+            personaGrid.style.display = 'none';
+        } else {
+            noResults.style.display = 'none';
+            personaGrid.style.display = 'grid';
+        }
+    }
+
+    // Event listeners
+    searchInput.addEventListener('input', filterPersonas);
+    sortSelect.addEventListener('change', filterPersonas);
+    filterPublic.addEventListener('change', filterPersonas);
+    filterPrivate.addEventListener('change', filterPersonas);
+
+    // Clear filters button
+    clearFilters.addEventListener('click', function() {
+        searchInput.value = '';
+        sortSelect.value = 'name';
+        filterPublic.checked = (activeTab === 'public');
+        filterPrivate.checked = (activeTab === 'my');
+        filterPersonas();
+    });
+
+    // Initial filter
+    filterPersonas();
+});
+</script>
 {% endblock %}
