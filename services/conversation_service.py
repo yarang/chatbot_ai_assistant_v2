@@ -128,8 +128,8 @@ async def ask_question_stream(
             "next": ""
         }
         
-        # Stream from graph
-        buffer = StreamBuffer(time_threshold_sec=0.5, char_threshold=50)
+        # Stream from graph with optimized buffer for real-time updates
+        buffer = StreamBuffer(time_threshold_sec=0.3, char_threshold=25)
 
         config = {"recursion_limit": settings.agent.recursion_limit}
         

@@ -2,14 +2,13 @@
 임베딩 서비스
 
 텍스트 청크의 임베딩 생성, 배치 처리, API 재시도, 비용 모니터링을 수행합니다.
-Google Generative AI Embeddings API를 사용하여 768차원 벡터를 생성하고 저장합니다.
+sentence-transformers를 사용하여 로컬에서 768차원 벡터를 생성하고 저장합니다.
 """
 import logging
 import time
 from typing import List
 
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from pydantic import SecretStr
+from sentence_transformers import SentenceTransformer
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -31,12 +30,12 @@ class EmbeddingService:
     임베딩 서비스
 
     텍스트 청크를 768차원 임베딩 벡터로 변환하고 데이터베이스에 저장합니다.
-    Gemini Embeddings API(text-embedding-004)를 사용하며 배치 처리와 재시도를 지원합니다.
+    sentence-transformers(all-mpnet-base-v2)를 사용하며 배치 처리와 재시도를 지원합니다.
 
     Attributes:
         session: SQLAlchemy 비동기 세션
         repository: 임베딩 리포지토리
-        embedding_model: Gemini 임베딩 모델
+        embedding_model: sentence-transformers 임베딩 모델
         max_batch_size: 최대 배치 크기 (기본값: 100)
         max_retries: 최대 재시도 횟수 (기본값: 3)
 
@@ -71,7 +70,7 @@ class EmbeddingService:
         텍스트 청크 임베딩 생성 및 저장
 
         청크를 배치로 처리하여 임베딩을 생성하고 데이터베이스에 저장합니다.
-        배치 크기는 최대 100개이며, API 실패 시 지수 백오프로 재시도합니다.
+        배치 크기는 최대 100개이며, 실패 시 지수 백오프로 재시도합니다.
 
         Args:
             chunks: 텍스트 청크 리스트
@@ -138,9 +137,6 @@ class EmbeddingService:
 
         processing_time = time.time() - start_time
 
-        # 비용 로깅
-        self._log_cost(total_chunks)
-
         # 결과 생성
         result = EmbeddingResult(
             total_chunks=total_chunks,
@@ -152,7 +148,7 @@ class EmbeddingService:
             metadata={
                 "chat_room_id": chat_room_id,
                 "file_id": file_id,
-                "model": "text-embedding-004"
+                "model": "all-mpnet-base-v2"
             }
         )
 
@@ -167,7 +163,7 @@ class EmbeddingService:
         """
         배치 임베딩 생성 (재시도 포함)
 
-        지수 백오프를 사용하여 API 실패 시 재시도합니다.
+        지수 백오프를 사용하여 실패 시 재시도합니다.
         최대 3번 재시도하며, 대기 시간은 1초, 2초, 4초로 증가합니다.
 
         Args:
@@ -194,27 +190,23 @@ class EmbeddingService:
 
         return embeddings
 
-    def _get_embedding_model(self) -> GoogleGenerativeAIEmbeddings:
+    def _get_embedding_model(self) -> SentenceTransformer:
         """
-        Gemini 임베딩 모델 초기화
+        sentence-transformers 임베딩 모델 초기화
 
-        text-embedding-004 모델을 사용하여 768차원 임베딩을 생성합니다.
+        all-mpnet-base-v2 모델을 사용하여 768차원 임베딩을 생성합니다.
 
         Returns:
-            GoogleGenerativeAIEmbeddings: 초기화된 임베딩 모델
+            SentenceTransformer: 초기화된 임베딩 모델
 
         Private Method:
             이 메서드는 내부 사용을 위한 것이며,
             _batch_embed() 메서드를 통해 호출됩니다.
         """
-        settings = get_settings()
+        # 로컬에서 모델 로드 (첫 실행 시 다운로드)
+        model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
 
-        model = GoogleGenerativeAIEmbeddings(
-            model="models/text-embedding-004",
-            api_key=SecretStr(settings.gemini.api_key)
-        )
-
-        logger.info("Gemini 임베딩 모델 초기화 완료: text-embedding-004")
+        logger.info("sentence-transformers 임베딩 모델 초기화 완료: all-mpnet-base-v2")
 
         return model
 
@@ -229,7 +221,7 @@ class EmbeddingService:
         재시도 로직이 포함된 임베딩 생성
 
         tenacity를 사용하여 지수 백오프 재시도를 구현합니다.
-        API 실패 시 1초, 2초, 4초 대기 후 재시도합니다.
+        실패 시 1초, 2초, 4초 대기 후 재시도합니다.
 
         Args:
             texts: 임베딩을 생성할 텍스트 리스트
@@ -245,18 +237,25 @@ class EmbeddingService:
             _batch_embed() 메서드를 통해 호출됩니다.
         """
         try:
-            # 동기 임베딩 호출 (langchain의 GeminiEmbeddings는 동기)
-            embeddings = self.embedding_model.embed_documents(texts)
+            # sentence-transformers로 임베딩 생성 (동기 호출을 async로 래핑)
+            embeddings = self.embedding_model.encode(
+                texts,
+                convert_to_numpy=True,
+                normalize_embeddings=True
+            )
+
+            # numpy 배열을 리스트로 변환
+            embeddings_list = embeddings.tolist()
 
             # 차원 검증
-            for i, embedding in enumerate(embeddings):
+            for i, embedding in enumerate(embeddings_list):
                 if len(embedding) != 768:
                     raise ValueError(
                         f"임베딩 {i}의 차원이 768이어야 합니다 (현재: {len(embedding)})"
                     )
 
             logger.debug(f"{len(texts)}개 텍스트 임베딩 생성 완료")
-            return embeddings
+            return embeddings_list
 
         except Exception as e:
             logger.warning(f"임베딩 생성 실패, 재시도 진행: {e}")
@@ -266,8 +265,8 @@ class EmbeddingService:
         """
         임베딩 비용 로깅
 
-        처리된 청크 수를 기반으로 비용을 추정하고 로깅합니다.
-        Gemini text-embedding-004 가격 기준: $0.025 per 1M characters (approximate)
+        로컬 모델을 사용하므로 API 비용은 없습니다.
+        대신 처리 시간과 리소스 사용량을 로깅합니다.
 
         Args:
             chunk_count: 처리된 청크 수
@@ -276,12 +275,8 @@ class EmbeddingService:
             이 메서드는 내부 사용을 위한 것이며,
             embed_chunks() 메서드를 통해 호출됩니다.
         """
-        # 비용 추정 (문자 수 기준, 대략적 계산)
-        # 청크당 평균 500자 가정
-        estimated_chars = chunk_count * 500
-        estimated_cost_usd = (estimated_chars / 1_000_000) * 0.025
-
+        # 로컬 모델이므로 API 비용 없음
         logger.info(
-            f"임베딩 비용: {chunk_count} 청크 처리 "
-            f"(추정 {estimated_chars:,} 문자, 약 ${estimated_cost_usd:.6f} USD)"
+            f"임베딩 완료: {chunk_count} 청크 처리 "
+            f"(로컬 모델 사용, API 비용 없음)"
         )
