@@ -177,3 +177,4 @@ env/
 # Private keys and certificates (specific patterns to avoid false positives)
 # Old patterns caused false positives for: keyboard-config, hotkey, monkey-patch, etc.
 !.moai/memory/**
+Groq free api key
