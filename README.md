@@ -92,8 +92,22 @@ TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 TELEGRAM_BOT_USERNAME=your_bot_username
 TELEGRAM_WEBHOOK_URL=https://your-domain.ngrok-free.app/webhook
 
-# Search
-TAVILY_API_KEY=your_tavily_api_key
+# Web Search Engine
+# Options: ddg (DuckDuckGo, default/free), tavily (premium), google (100/day free)
+SEARCH_ENGINE=ddg
+SEARCH_MAX_RESULTS=3
+
+# DuckDuckGo - No API key required (default)
+
+# Tavily Search - Premium, excellent results
+# Get API key at https://tavily.com
+SEARCH_TAVILY_API_KEY=your_tavily_api_key
+
+# Google Custom Search - Free tier: 100 queries/day
+# Get API key at https://console.cloud.google.com
+# Create CSE at https://cse.google.com
+SEARCH_GOOGLE_API_KEY=your_google_api_key
+SEARCH_GOOGLE_CSE_ID=your_google_cse_id
 
 # Access Control (Admin telegram IDs)
 ADMIN_IDS=[12345678, 87654321]
@@ -392,6 +406,94 @@ curl -X GET "http://localhost:8000/api/persona/user/me" \
 
 **Endpoint:** `POST /telegram/webhook`
 
+#### Webhook 보안 설정 (Production 권장)
+
+프로덕션 환경에서는 Webhook 보안 설정을 강력히 권장합니다.
+
+**1. Secret Token 생성**
+
+```bash
+# 랜덤 시크릿 토큰 생성
+openssl rand -hex 32
+```
+
+**2. .env 파일에 설정**
+
+```bash
+TELEGRAM_WEBHOOK_SECRET=생성된_시크릿_토큰
+```
+
+**3. Webhook 설정 시 Secret Token 포함**
+
+```bash
+# Webhook 설정 (시크릿 토큰 포함)
+curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
+  -d "url=https://your-domain.com/webhook" \
+  -d "secret_token=<YOUR_SECRET_TOKEN>"
+```
+
+**보안 기능 설명:**
+
+- **Secret Token 검증**: Telegram에서 전송한 요청만 수락
+- **IP 기반 Rate Limiting**: 10회 실패 시 5분간 IP 차단
+- **요청 로깅**: 모든 요청의 IP, User-Agent 등 로깅
+- **비정상 요청 탐지**: 반복적인 인증 실패 감지 및 차단
+
+**참고:** Secret Token 미설정 시 보안 검증을 건너뛰지만, 프로덕션 환경에서는 권장하지 않습니다.
+
+#### Webhook 문제 해결
+
+Webhook이 작동하지 않을 때 다음 단계를 따르세요:
+
+**1. 자동 진단 스크립트 실행**
+
+```bash
+python scripts/diagnose_webhook.py
+```
+
+이 스크립트는 다음을 확인합니다:
+- 서버 실행 상태
+- Telegram Webhook 설정 정보
+- ngrok/도메인 URL 구성
+- 설정 불일치 여부
+
+**2. Webhook 수동 설정**
+
+진단 후 문제가 발견되면 다음 명령어로 webhook을 설정하세요:
+
+```bash
+# Webhook 설정
+python scripts/set_webhook.py
+
+# Webhook 삭제 (Polling 모드로 전환)
+python scripts/set_webhook.py --delete
+```
+
+**3. 일반적인 문제 및 해결 방법**
+
+| 문제 | 원인 | 해결 방법 |
+|------|------|-----------|
+| "Webhook not found" | Webhook URL이 `/webhook`으로 끝나지 않음 | URL 끝에 `/webhook` 추가 |
+| "Connection refused" | 서버가 실행되지 않음 | `uvicorn main:app --reload` 실행 |
+| "Telegram API error" | Bot 토큰이 잘못됨 | `.env`의 `TELEGRAM_BOT_TOKEN` 확인 |
+| ngrok URL 변경 | ngrok 재시작으로 URL 변경 | BotFather에서 Webhook URL 재설정 |
+
+**4. Webhook URL 형식**
+
+올바른 Webhook URL 형식:
+```
+http://localhost:8000/webhook              # 로컬 개발
+https://your-domain.ngrok-free.app/webhook  # ngrok
+https://your-domain.com/webhook             # 프로덕션
+```
+
+**5. Webhook 경로 확인**
+
+서버가 실행 중일 때 다음으로 엔드포인트가 존재하는지 확인:
+```bash
+curl -X OPTIONS http://localhost:8000/webhook
+```
+
 ## 개발 로드맵
 
 자세한 개발 계획은 [project_roadmap.md](./project_roadmap.md)를 참조하세요.
@@ -547,6 +649,88 @@ pytest tests/test_embedding_repository.py -v
 # 전체 테스트
 pytest --cov=services --cov=repository --cov-report=html
 ```
+
+---
+
+## 웹 검색 엔진 설정
+
+이 프로젝트는 3가지 검색 엔진을 지원하여 AI가 실시간 정보를 검색할 수 있습니다.
+
+### 지원하는 검색 엔진
+
+#### 1. DuckDuckGo (기본값)
+- **비용**: 무료
+- **API 키**: 불필요
+- **일일 제한**: 없음
+- **추천 사용**: 개인 프로젝트, 개발 환경
+
+**설정:**
+```env
+SEARCH_ENGINE=ddg
+```
+
+#### 2. Tavily Search
+- **비용**: 유료 (무료 티어 있음)
+- **API 키**: 필요
+- **일일 제한**: 무료 티어 1,000회/월
+- **추천 사용**: 프로덕션 환경, 우수한 검색 결과 필요
+
+**설정:**
+```env
+SEARCH_ENGINE=tavily
+SEARCH_TAVILY_API_KEY=your_tavily_api_key
+```
+
+**API 키 발급:** https://tavily.com
+
+#### 3. Google Custom Search
+- **비용**: 무료 티어
+- **API 키**: 필요
+- **일일 제한**: 100회/일 (무료 티어)
+- **추천 사용**: Google 검색 결과 선호 시
+
+**설정:**
+```env
+SEARCH_ENGINE=google
+SEARCH_GOOGLE_API_KEY=your_google_api_key
+SEARCH_GOOGLE_CSE_ID=your_google_cse_id
+```
+
+**API 키 발급:**
+1. Google API 키: https://console.cloud.google.com
+2. Custom Search Engine: https://cse.google.com
+
+### 검색 엔진 변경 방법
+
+1. `.env` 파일에서 `SEARCH_ENGINE` 값을 변경
+2. 해당 검색 엔진의 API 키 설정 (필요한 경우)
+3. 서버 재시작
+
+```env
+# 예: Tavily로 변경
+SEARCH_ENGINE=tavily
+SEARCH_TAVILY_API_KEY=tvly-xxxxxxxxxxxxx
+```
+
+### 추가 설정
+
+```env
+# 검색 결과 최대 수 (기본값: 3)
+SEARCH_MAX_RESULTS=3
+
+# 검색 타임아웃 (초, 기본값: 10)
+SEARCH_TIMEOUT=10.0
+```
+
+### 자동 폴백
+
+API 키가 없는 경우:
+- Tavily → DuckDuckGo로 자동 폴백
+- Google → DuckDuckGo로 자동 폴백
+
+이로 인해 검색 기능이 항상 작동하도록 보장됩니다.
+
+---
 
 ### 문서
 - **SPEC 문서**: [`.moai/specs/SPEC-RAG-001/spec.md`](./.moai/specs/SPEC-RAG-001/spec.md)

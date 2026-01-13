@@ -104,13 +104,33 @@ class LocalLLMSettings(BaseSettings):
     )
 
 
+class SearchSettings(BaseSettings):
+    """Web search engine configuration."""
+    engine: str = "ddg"  # Options: ddg (DuckDuckGo), tavily, google
+    max_results: int = 3  # Maximum number of search results to return
+    timeout: float = 10.0  # Search timeout in seconds
+
+    # Tavily API key (if using tavily engine)
+    tavily_api_key: Optional[str] = None
+
+    # Google Custom Search API keys (if using google engine)
+    google_api_key: Optional[str] = None
+    google_cse_id: Optional[str] = None
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_prefix="SEARCH_",
+        extra="ignore"
+    )
+
+
 class Settings(BaseSettings):
     log_level: str = "INFO"
     llm_api: str = "Gemini"  # Options: Gemini, Groq, Z.ai, Local
     admin_ids: List[int] = []
 
-    tavily_api_key: Optional[str] = None
-    secret_key: str  # Mandatory SECRET_KEY
+    tavily_api_key: Optional[str] = None  # Deprecated: Use search.tavily_api_key
+    secret_key: str = "change-me-to-a-secure-random-string"  # Mandatory SECRET_KEY
 
     # Nested settings
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
@@ -121,6 +141,7 @@ class Settings(BaseSettings):
     notion: NotionSettings = Field(default_factory=NotionSettings)
     agent: AgentSettings = Field(default_factory=AgentSettings)
     local_llm: LocalLLMSettings = Field(default_factory=LocalLLMSettings)
+    search: SearchSettings = Field(default_factory=SearchSettings)
 
     model_config = SettingsConfigDict(
         env_file=".env",
