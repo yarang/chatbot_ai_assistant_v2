@@ -1,15 +1,33 @@
-from fastapi import APIRouter, Request, Depends, HTTPException, status, Form, UploadFile, File
+import uuid
+
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from core.config import get_settings
-from core.security import get_current_user
-from repository.chat_room_repository import get_chat_room_by_telegram_id, get_chat_room_participants
-from repository.user_repository import get_user_by_telegram_id
-from services.knowledge_service import process_uploaded_file, get_chat_room_documents, delete_document
-from core.database import get_async_session
 from sqlalchemy import select
+
+from core.config import get_settings
+from core.database import get_async_session
+from core.security import get_current_user
 from models.chat_room_model import ChatRoom
-import uuid
+from repository.chat_room_repository import (
+    get_chat_room_by_telegram_id,
+    get_chat_room_participants,
+)
+from repository.user_repository import get_user_by_telegram_id
+from services.knowledge_service import (
+    delete_document,
+    get_chat_room_documents,
+    process_uploaded_file,
+)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")

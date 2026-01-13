@@ -1,7 +1,8 @@
 import uuid
-from typing import List, Tuple, Optional, Union
+from typing import List, Optional, Tuple, Union
+
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
 
 from core.database import get_async_session
 from models.conversation_model import Conversation

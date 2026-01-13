@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Optional, List, Dict, Any
 from datetime import datetime
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Integer, ForeignKey, TIMESTAMP, func
-from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
 from pgvector.sqlalchemy import Vector
+from sqlalchemy import TIMESTAMP, ForeignKey, Integer, String, func
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
 

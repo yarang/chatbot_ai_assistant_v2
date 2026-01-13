@@ -3,42 +3,369 @@
 {% block title %}{% if persona %}Edit Persona{% else %}Create New Persona{% endif %} - AI Assistant{% endblock %}
 
 {% block content %}
-<div style="max-width: 600px; margin: 0 auto;">
-    <h1 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1.5rem;">
+<div class="flex-between mb-6">
+    <h1 style="font-size: 1.5rem; font-weight: 700; margin: 0;">
         {% if persona %}Edit Persona{% else %}Create New Persona{% endif %}
     </h1>
-
-    <form id="personaForm" class="card" method="POST" action="{% if persona %}/personas/{{ persona.id }}{% else %}/personas{% endif %}">
-        <div class="form-group">
-            <label for="name">Name</label>
-            <input id="name" name="name" type="text" placeholder="Persona Name" value="{{ persona.name if persona else '' }}" required>
-        </div>
-        
-        <div class="form-group">
-            <label for="description">Description</label>
-            <input id="description" name="description" type="text" placeholder="Short description" value="{{ persona.description if persona else '' }}">
-        </div>
-
-        <div class="form-group">
-            <label for="content">System Prompt (Content)</label>
-            <textarea id="content" name="content" placeholder="You are a helpful assistant..." rows="6" required>{{ persona.content if persona else '' }}</textarea>
-            <p style="color: var(--text-muted); font-size: 0.75rem; margin-top: 0.25rem;">Define how the AI should behave.</p>
-        </div>
-
-        <div class="form-group">
-            <label style="display: flex; align-items: center; cursor: pointer;">
-                <input type="checkbox" id="is_public" name="is_public" value="true" style="width: auto; margin-right: 0.5rem;" 
-                       {% if persona and persona.is_public %}checked{% endif %}>
-                <span>Make Public</span>
-            </label>
-        </div>
-
-        <div class="flex-between" style="margin-top: 2rem;">
-            <a href="/personas" class="btn" style="color: var(--text-muted);">Cancel</a>
-            <button type="submit" class="btn btn-primary">
-                {% if persona %}Update{% else %}Create{% endif %}
-            </button>
-        </div>
-    </form>
+    <div style="display: flex; gap: var(--spacing-sm);">
+        <span id="save-status" style="display: flex; align-items: center; gap: var(--spacing-xs); font-size: 0.875rem; color: var(--text-muted);"></span>
+    </div>
 </div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-xl); align-items: start;">
+    <!-- Form Section -->
+    <div>
+        <form id="personaForm" class="card" method="POST" action="{% if persona %}/personas/{{ persona.id }}{% else %}/personas{% endif %}">
+            <div class="form-group">
+                <label for="name">Name <span style="color: var(--danger-color);">*</span></label>
+                <input id="name" name="name" type="text" placeholder="e.g., Helpful Assistant" value="{{ persona.name if persona else '' }}" required minlength="2" maxlength="100">
+                <div id="name-error" class="field-error" style="color: var(--danger-color); font-size: 0.75rem; margin-top: var(--spacing-xs); display: none;"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="description">Description</label>
+                <input id="description" name="description" type="text" placeholder="A brief description of this persona" value="{{ persona.description if persona else '' }}" maxlength="500">
+                <div class="char-counter" id="description-counter">
+                    <span id="description-count">0</span> / 500
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="template-select">Start from Template</label>
+                <select id="template-select" aria-label="Choose a persona template">
+                    <option value="">-- Select a template --</option>
+                    <option value="helpful">Helpful Assistant</option>
+                    <option value="creative">Creative Writer</option>
+                    <option value="technical">Technical Expert</option>
+                    <option value="teacher">Teacher</option>
+                    <option value="professional">Professional Coach</option>
+                    <option value="casual">Casual Friend</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="content">System Prompt <span style="color: var(--danger-color);">*</span></label>
+                <textarea id="content" name="content" placeholder="Define how the AI should behave..." rows="12" required minlength="50">{{ persona.content if persona else '' }}</textarea>
+                <div class="char-counter" id="content-counter">
+                    <span id="content-count">0</span> characters (minimum 50)
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label style="display: flex; align-items: center; cursor: pointer; gap: var(--spacing-sm);">
+                    <input type="checkbox" id="is_public" name="is_public" value="true"
+                           {% if persona and persona.is_public %}checked{% endif %}>
+                    <span>Make Public <span style="color: var(--text-muted); font-weight: normal; font-size: 0.75rem;">(Other users can use this persona)</span></span>
+                </label>
+            </div>
+
+            <div class="flex-between" style="margin-top: var(--spacing-xl);">
+                <a href="/personas" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary" id="submit-btn">
+                    {% if persona %}Update{% else %}Create{% endif %} Persona
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Preview Section -->
+    <div>
+        <div class="card" style="position: sticky; top: var(--spacing-lg);">
+            <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: var(--spacing-md); display: flex; align-items: center; gap: var(--spacing-sm);">
+                <span>👁️</span> Preview
+            </h3>
+
+            <div style="background-color: var(--bg-secondary); padding: var(--spacing-md); border-radius: var(--radius-md); margin-bottom: var(--spacing-md);">
+                <div style="display: flex; align-items: center; gap: var(--spacing-sm); margin-bottom: var(--spacing-sm);">
+                    <span id="preview-name" style="font-weight: 600; font-size: 1.125rem;">
+                        {{ persona.name if persona else 'Persona Name' }}
+                    </span>
+                    <span id="preview-badge" class="badge {% if persona and persona.is_public %}badge-public{% else %}badge-private{% endif %}">
+                        {% if persona and persona.is_public %}Public{% else %}Private{% endif %}
+                    </span>
+                </div>
+                <p id="preview-description" style="color: var(--text-muted); font-size: 0.875rem;">
+                    {{ persona.description if persona else 'No description provided' }}
+                </p>
+            </div>
+
+            <div style="margin-bottom: var(--spacing-sm);">
+                <h4 style="font-size: 0.875rem; font-weight: 600; color: var(--text-muted); margin-bottom: var(--spacing-sm);">System Prompt:</h4>
+                <div style="background-color: var(--bg-secondary); padding: var(--spacing-md); border-radius: var(--radius-md); max-height: 400px; overflow-y: auto;">
+                    <pre id="preview-content" style="white-space: pre-wrap; font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; font-size: 0.875rem; margin: 0;">{{ persona.content if persona else 'No prompt defined yet' }}</pre>
+                </div>
+            </div>
+
+            <div style="font-size: 0.75rem; color: var(--text-muted); font-style: italic;">
+                This is how your persona will appear to users
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Persona Templates (hidden) -->
+<script>
+const personaTemplates = {
+    helpful: {
+        name: 'Helpful Assistant',
+        description: 'A friendly and helpful AI assistant',
+        content: `You are a helpful AI assistant. Your role is to:
+
+1. Provide clear, accurate, and concise answers
+2. Be friendly and approachable in your communication
+3. Ask clarifying questions when needed
+4. Admit when you don't know something
+5. Offer to help with additional questions
+
+Keep your responses conversational but professional.`
+    },
+    creative: {
+        name: 'Creative Writer',
+        description: 'An imaginative and artistic writing companion',
+        content: `You are a creative writing assistant with a passion for storytelling. Your role is to:
+
+1. Help users develop creative ideas and stories
+2. Provide imaginative suggestions and plot twists
+3. Offer constructive feedback on writing
+4. Use vivid and engaging language
+5. Encourage creative expression
+
+Be inspiring, imaginative, and supportive in your responses.`
+    },
+    technical: {
+        name: 'Technical Expert',
+        description: 'A knowledgeable technical consultant',
+        content: `You are a technical expert with deep knowledge of software development, systems architecture, and technology. Your role is to:
+
+1. Provide accurate technical information and best practices
+2. Explain complex concepts in clear terms
+3. Suggest practical solutions to technical problems
+4. Consider scalability, security, and maintainability
+5. Stay current with industry standards
+
+Be precise, practical, and thorough in your technical advice.`
+    },
+    teacher: {
+        name: 'Teacher',
+        description: 'A patient and educational instructor',
+        content: `You are a patient and encouraging teacher. Your role is to:
+
+1. Explain concepts step by step
+2. Use examples and analogies to clarify ideas
+3. Check for understanding before moving forward
+4. Encourage questions and curiosity
+5. Adapt your teaching style to the learner's needs
+
+Be supportive, clear, and methodical in your explanations.`
+    },
+    professional: {
+        name: 'Professional Coach',
+        description: 'A business and career development coach',
+        content: `You are a professional coach specializing in career development and business growth. Your role is to:
+
+1. Provide actionable advice for professional growth
+2. Help users set and achieve career goals
+3. Offer strategies for skill development
+4. Give feedback on professional communication
+5. Share best practices for workplace success
+
+Be motivational, practical, and results-oriented in your guidance.`
+    },
+    casual: {
+        name: 'Casual Friend',
+        description: 'A friendly and relaxed conversational partner',
+        content: `You are a friendly and casual conversational partner. Your role is to:
+
+1. Engage in relaxed and natural conversation
+2. Be empathetic and supportive
+3. Use informal language and expressions
+4. Share thoughts and experiences naturally
+5. Keep the conversation fun and engaging
+
+Be warm, conversational, and authentic in your responses.`
+    }
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('personaForm');
+    const nameInput = document.getElementById('name');
+    const descriptionInput = document.getElementById('description');
+    const contentInput = document.getElementById('content');
+    const templateSelect = document.getElementById('template-select');
+    const isPublicCheckbox = document.getElementById('is_public');
+    const submitBtn = document.getElementById('submit-btn');
+    const saveStatus = document.getElementById('save-status');
+
+    // Preview elements
+    const previewName = document.getElementById('preview-name');
+    const previewDescription = document.getElementById('preview-description');
+    const previewContent = document.getElementById('preview-content');
+    const previewBadge = document.getElementById('preview-badge');
+
+    // Counter elements
+    const descriptionCounter = document.getElementById('description-count');
+    const contentCounter = document.getElementById('content-count');
+
+    // Auto-save debounce timer
+    let autoSaveTimer = null;
+    const AUTO_SAVE_DELAY = 2000; // 2 seconds
+
+    // Update preview
+    function updatePreview() {
+        previewName.textContent = nameInput.value || 'Persona Name';
+        previewDescription.textContent = descriptionInput.value || 'No description provided';
+        previewContent.textContent = contentInput.value || 'No prompt defined yet';
+
+        if (isPublicCheckbox.checked) {
+            previewBadge.textContent = 'Public';
+            previewBadge.className = 'badge badge-public';
+        } else {
+            previewBadge.textContent = 'Private';
+            previewBadge.className = 'badge badge-private';
+        }
+    }
+
+    // Update character counters
+    function updateCounters() {
+        const descLength = descriptionInput.value.length;
+        const contentLength = contentInput.value.length;
+
+        descriptionCounter.textContent = descLength;
+        contentCounter.textContent = contentLength;
+
+        // Content counter styling
+        if (contentLength < 50) {
+            contentCounter.parentElement.classList.add('error');
+        } else if (contentLength < 100) {
+            contentCounter.parentElement.classList.add('warning');
+        } else {
+            contentCounter.parentElement.classList.remove('error', 'warning');
+        }
+
+        // Description counter styling
+        if (descLength > 450) {
+            descriptionCounter.parentElement.classList.add('warning');
+        } else {
+            descriptionCounter.parentElement.classList.remove('warning');
+        }
+    }
+
+    // Auto-save to localStorage
+    function autoSave() {
+        const formData = {
+            name: nameInput.value,
+            description: descriptionInput.value,
+            content: contentInput.value,
+            is_public: isPublicCheckbox.checked
+        };
+        localStorage.setItem('persona-draft', JSON.stringify(formData));
+        showSaveStatus('Saved');
+    }
+
+    // Show save status
+    function showSaveStatus(message) {
+        saveStatus.innerHTML = `<span class="spinner" style="width: 0.75rem; height: 0.75rem;"></span> ${message}`;
+
+        setTimeout(() => {
+            saveStatus.innerHTML = `💾 ${message}`;
+            setTimeout(() => {
+                saveStatus.innerHTML = '';
+            }, 2000);
+        }, 500);
+    }
+
+    // Load draft from localStorage
+    function loadDraft() {
+        const draft = localStorage.getItem('persona-draft');
+        if (draft && !nameInput.value) { // Only load if form is empty
+            const data = JSON.parse(draft);
+            nameInput.value = data.name || '';
+            descriptionInput.value = data.description || '';
+            contentInput.value = data.content || '';
+            isPublicCheckbox.checked = data.is_public || false;
+            updatePreview();
+            updateCounters();
+        }
+    }
+
+    // Clear draft on successful submit
+    form.addEventListener('submit', function() {
+        localStorage.removeItem('persona-draft');
+    });
+
+    // Template selection
+    templateSelect.addEventListener('change', function() {
+        const template = personaTemplates[this.value];
+        if (template) {
+            nameInput.value = template.name;
+            descriptionInput.value = template.description;
+            contentInput.value = template.content;
+            updatePreview();
+            updateCounters();
+            showSaveStatus('Template loaded');
+        }
+    });
+
+    // Event listeners for live updates
+    nameInput.addEventListener('input', function() {
+        updatePreview();
+        scheduleAutoSave();
+    });
+
+    descriptionInput.addEventListener('input', function() {
+        updatePreview();
+        updateCounters();
+        scheduleAutoSave();
+    });
+
+    contentInput.addEventListener('input', function() {
+        updatePreview();
+        updateCounters();
+        scheduleAutoSave();
+    });
+
+    isPublicCheckbox.addEventListener('change', function() {
+        updatePreview();
+        scheduleAutoSave();
+    });
+
+    // Schedule auto-save with debounce
+    function scheduleAutoSave() {
+        if (autoSaveTimer) {
+            clearTimeout(autoSaveTimer);
+        }
+        autoSaveTimer = setTimeout(autoSave, AUTO_SAVE_DELAY);
+    }
+
+    // Form validation
+    form.addEventListener('submit', function(e) {
+        const nameError = document.getElementById('name-error');
+
+        if (nameInput.value.trim().length < 2) {
+            e.preventDefault();
+            nameError.textContent = 'Name must be at least 2 characters';
+            nameError.style.display = 'block';
+            nameInput.focus();
+            return false;
+        } else {
+            nameError.style.display = 'none';
+        }
+
+        if (contentInput.value.trim().length < 50) {
+            e.preventDefault();
+            alert('System prompt must be at least 50 characters');
+            contentInput.focus();
+            return false;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner"></span> Saving...';
+    });
+
+    // Initialize
+    loadDraft();
+    updatePreview();
+    updateCounters();
+});
+</script>
 {% endblock %}

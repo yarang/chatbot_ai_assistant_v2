@@ -1,18 +1,19 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Optional, List
 from datetime import datetime
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, BigInteger, TIMESTAMP, func
+from typing import TYPE_CHECKING, List, Optional
+
+from sqlalchemy import TIMESTAMP, BigInteger, String, func
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
 
 if TYPE_CHECKING:
     from models.conversation_model import Conversation
-    from models.persona_model import Persona
     from models.evaluation_model import PersonaEvaluation
+    from models.persona_model import Persona
 
 
 class User(Base):

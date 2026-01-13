@@ -1,14 +1,15 @@
 from datetime import datetime
 import os
+import openai
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_ollama import ChatOllama
-from core.llm import get_llm
-from core.config import get_settings
-from repository.conversation_repository import get_history
-from agent.state import ChatState, RouteDecision
 
+from agent.state import ChatState, RouteDecision
+from core.config import get_settings
+from core.llm import get_llm
 from core.logger import get_logger
+from repository.conversation_repository import get_history
 
 logger = get_logger(__name__)
 
@@ -75,7 +76,7 @@ async def supervisor_node(state: ChatState):
             ("system", system_prompt),
             MessagesPlaceholder(variable_name="messages"),
             (
-                "system",
+                "user",
                 "Given the conversation above, who should act next?"
                 " Or should we FINISH? Select one of: {options}\n"
                 "CRITICAL: If the last message is from the User, you MUST NOT select FINISH. You must select a worker to answer the user.",
@@ -89,9 +90,14 @@ async def supervisor_node(state: ChatState):
         messages.append(SystemMessage(content=f"Previous conversation summary: {state['summary']}"))
         
     # Fetch recent history
+    # Fetch recent history
     chat_room_id = state["chat_room_id"]
-    history_tuples = await get_history(chat_room_id, limit=10)
+    history_tuples = await get_history(chat_room_id, limit=5)
     for role, content, name, _ in history_tuples:
+        # Truncate long messages in history to save tokens
+        if len(content) > 1000:
+             content = content[:1000] + "...(truncated)"
+             
         if role == "user":
             messages.append(HumanMessage(content=content, name=name))
         else:
@@ -101,6 +107,7 @@ async def supervisor_node(state: ChatState):
 
     # Hybrid Router Logic
     settings = get_settings()
+
     result_decision = None
 
     async def run_chain(llm_instance):
@@ -117,7 +124,7 @@ async def supervisor_node(state: ChatState):
                 model=settings.local_llm.model,
                 temperature=0,
                 timeout=settings.local_llm.timeout
-            )
+            ) 
             result_decision = await run_chain(local_llm)
         except Exception as e:
             logger.warning(f"Local Router Failed, falling back to Gemini. Error: {e}")
@@ -129,8 +136,33 @@ async def supervisor_node(state: ChatState):
             llm = get_llm(state.get("model_name"))
             result_decision = await run_chain(llm)
         except Exception as e:
-            logger.error(f"Supervisor failed: {e}")
-            return {"next": "GeneralAssistant"}
+            logger.error(f"Supervisor structured output failed: {e}. Attempting RAW fallback.")
+            # Fallback: Try demanding raw text
+            try:
+                llm = get_llm(state.get("model_name"))
+                fallback_prompt = ChatPromptTemplate.from_messages([
+                    ("system", system_prompt),
+                    MessagesPlaceholder(variable_name="messages"),
+                    ("user", f"Given the conversation above, simply reply with the name of the worker to act next. Choose EXACTLY one from: {OPTIONS}. Do not add any reasoning or markdown.")
+                ]).partial(members=members_with_descriptions)
+                
+                chain = fallback_prompt | llm
+                response = await chain.ainvoke({"messages": messages})
+                content = response.content.strip()
+                
+                # Simple parsing logic
+                found_agent = "GeneralAssistant" # Default
+                for option in OPTIONS:
+                    if option in content:
+                        found_agent = option
+                        break
+                
+                logger.info(f"Supervisor RAW fallback decided: {found_agent}")
+                result_decision = RouteDecision(next_agent=found_agent, reasoning="Fallback parsing due to structured output failure")
+                
+            except Exception as e2:
+                logger.error(f"Supervisor RAW fallback also failed: {e2}")
+                return {"next": "GeneralAssistant"}
 
     next_step = result_decision.next_agent
 
@@ -165,7 +197,7 @@ async def supervisor_node(state: ChatState):
 
         if len(ai_messages) >= 4:
             if ai_messages[-1] == ai_messages[-3] and ai_messages[-2] == ai_messages[-4]:
-                    logger.warning("Loop detected: Alternating messages detected. Forcing FINISH.")
-                    return {"next": "FINISH"}
+                logger.warning("Loop detected: Alternating messages detected. Forcing FINISH.")
+                return {"next": "FINISH"}
 
     return {"next": next_step}

@@ -1,8 +1,10 @@
-from sqlalchemy import select, func
+from sqlalchemy import func, select
+
 from core.database import get_async_session
-from models.user_model import User
 from models.conversation_model import Conversation
 from models.persona_model import Persona
+from models.user_model import User
+
 
 class StatsRepository:
     async def get_total_users(self, session):

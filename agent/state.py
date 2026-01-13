@@ -1,8 +1,10 @@
-from typing import Annotated, List, Optional, Literal
-from typing_extensions import TypedDict
-from langgraph.graph.message import add_messages
+from typing import Annotated, List, Literal, Optional
+
 from langchain_core.messages import BaseMessage
+from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
+from typing_extensions import TypedDict
+
 
 class RouteDecision(BaseModel):
     next_agent: Literal["Researcher", "GeneralAssistant", "NotionSearch", "FINISH"] = Field(
@@ -17,6 +19,7 @@ class ChatState(TypedDict):
     persona_content: Optional[str]
     model_name: Optional[str]
     summary: Optional[str]
+    retrieved_context: Optional[str]  # RAG 검색 결과
     next: str
     input_tokens_used: Optional[int]
     output_tokens_used: Optional[int]

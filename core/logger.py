@@ -2,6 +2,7 @@ import logging
 import os
 from logging.handlers import RotatingFileHandler
 
+
 def configure_logging(level: str | int = "INFO", log_file: str = "logs/app.log") -> None:
     if isinstance(level, str):
         level = getattr(logging, level.upper(), logging.INFO)

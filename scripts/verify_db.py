@@ -6,14 +6,17 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from sqlalchemy import text
-from core.database import get_engine, Base
+
 from core.config import get_settings
-# Import all models to ensure they are registered with Base
-from models.user_model import User
-from models.persona_model import Persona
+from core.database import Base, get_engine
 from models.chat_room_model import ChatRoom
 from models.conversation_model import Conversation
+from models.persona_model import Persona
 from models.usage_model import UsageLog
+
+# Import all models to ensure they are registered with Base
+from models.user_model import User
+
 
 async def verify_database():
     print("🔍 Verifying database connection...")

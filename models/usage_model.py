@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Optional
 from datetime import datetime
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Integer, String, ForeignKey, TIMESTAMP, func
+from typing import TYPE_CHECKING, Optional
+
+from sqlalchemy import TIMESTAMP, ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
 
 if TYPE_CHECKING:
-    from models.user_model import User
     from models.chat_room_model import ChatRoom
+    from models.user_model import User
 
 
 class UsageLog(Base):

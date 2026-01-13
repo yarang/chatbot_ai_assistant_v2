@@ -1,15 +1,20 @@
 import asyncio
-import sys
 import os
+import sys
 import uuid
 
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.database import get_async_session, init_db
-from models.user_model import User
 from models.persona_model import Persona
-from repository.evaluation_repository import create_evaluation, get_persona_evaluations, get_persona_average_score
+from models.user_model import User
+from repository.evaluation_repository import (
+    create_evaluation,
+    get_persona_average_score,
+    get_persona_evaluations,
+)
+
 
 async def verify_evaluation():
     print("Initializing database...")

@@ -42,13 +42,28 @@
 
 <div class="card">
     <h2>Upload New File (새 파일 업로드)</h2>
-    <form action="/rag/{{ chat_room_id }}/upload" method="post" enctype="multipart/form-data" class="form-group">
-        <div class="input-group">
-            <label for="file">Choose File (파일 선택):</label>
-            <input type="file" id="file" name="file" required accept=".pdf,.txt,.md">
+
+    <!-- Drag & Drop Zone -->
+    <div id="drop-zone" class="drop-zone">
+        <div class="drop-zone-content">
+            <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <p class="drop-zone-text">Drag & Drop files here or click to select (파일을 끌어다 놓거나 클릭하여 선택)</p>
+            <p class="drop-zone-hint">Supported formats: PDF, TXT, MD (지원 형식: PDF, TXT, MD)</p>
+            <p class="drop-zone-hint">Maximum file size: 10MB (최대 파일 크기: 10MB)</p>
         </div>
-        <button type="submit" class="btn btn-primary">Upload (업로드)</button>
-    </form>
+        <input type="file" id="file-input" name="file" required accept=".pdf,.txt,.md" multiple style="display: none;">
+    </div>
+
+    <!-- Selected Files List -->
+    <div id="selected-files" class="selected-files"></div>
+
+    <!-- Upload Button -->
+    <div class="upload-actions">
+        <button type="button" id="upload-btn" class="btn btn-primary" disabled>Upload (업로드)</button>
+        <button type="button" id="clear-btn" class="btn btn-secondary">Clear (지우기)</button>
+    </div>
 </div>
 
 <div class="card">
@@ -61,16 +76,33 @@
                     <th>Filename (파일명)</th>
                     <th>Type (유형)</th>
                     <th>Size (크기)</th>
+                    <th>Status (상태)</th>
                     <th>Date (날짜)</th>
                     <th>Actions (작업)</th>
                 </tr>
             </thead>
             <tbody>
                 {% for doc in docs %}
-                <tr>
+                <tr data-file-id="{{ doc.id }}">
                     <td>{{ doc.filename }}</td>
                     <td><span class="badge">{{ doc.file_type }}</span></td>
                     <td>{{ (doc.size / 1024)|round(1) }} KB</td>
+                    <td>
+                        <span class="status-badge status-{{ doc.status }}">
+                            {% if doc.status == 'processing' %}Processing (처리 중){% elif doc.status == 'completed' %}Completed (완료){% elif doc.status == 'failed' %}Failed (실패){% else %}{{ doc.status }}{% endif %}
+                        </span>
+                        {% if doc.status == 'processing' %}
+                        <div class="progress-bar-container">
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 0%"></div>
+                            </div>
+                            <span class="progress-text">0%</span>
+                        </div>
+                        {% endif %}
+                        {% if doc.status == 'failed' and doc.error_message %}
+                        <div class="error-message">{{ doc.error_message }}</div>
+                        {% endif %}
+                    </td>
                     <td>{{ doc.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                     <td>
                         <form action="/rag/{{ chat_room_id }}/delete/{{ doc.id }}" method="post" onsubmit="return confirm('Are you sure you want to delete this file? (이 파일을 정말 삭제하시겠습니까?)');">
@@ -86,6 +118,9 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Flash Messages Container -->
+<div id="flash-messages" class="flash-messages"></div>
 
 <style>
     .breadcrumb {
@@ -120,5 +155,546 @@
         font-weight: 600;
         color: var(--text-muted);
     }
+
+    /* Status Badges */
+    .status-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.85em;
+        font-weight: 500;
+    }
+
+    .status-processing {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .status-completed {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .status-failed {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    /* Progress Bar */
+    .progress-bar-container {
+        margin-top: 0.5rem;
+    }
+
+    .progress-bar {
+        width: 100%;
+        height: 8px;
+        background: #e9ecef;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #007bff, #0056b3);
+        transition: width 0.3s ease;
+    }
+
+    .progress-text {
+        display: block;
+        font-size: 0.75em;
+        color: var(--text-muted);
+        margin-top: 0.25rem;
+    }
+
+    /* Error Message */
+    .error-message {
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        border-radius: 4px;
+        color: #721c24;
+        font-size: 0.85em;
+    }
+
+    /* Flash Messages */
+    .flash-messages {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1000;
+    }
+
+    .flash-message {
+        padding: 1rem;
+        margin-bottom: 0.5rem;
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        animation: slideIn 0.3s ease;
+        max-width: 400px;
+    }
+
+    .flash-success {
+        background: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+    }
+
+    .flash-error {
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+    }
+
+    .flash-info {
+        background: #d1ecf1;
+        border: 1px solid #bee5eb;
+        color: #0c5460;
+    }
+
+    @keyframes slideIn {
+        from {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    @keyframes fadeOut {
+        from {
+            opacity: 1;
+        }
+        to {
+            opacity: 0;
+        }
+    }
+
+    /* Drag & Drop Zone */
+    .drop-zone {
+        border: 2px dashed #ccc;
+        border-radius: 8px;
+        padding: 2rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background: #f8f9fa;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.drag-over {
+        border-color: #007bff;
+        background: #e9f2ff;
+    }
+
+    .drop-zone-content {
+        pointer-events: none;
+    }
+
+    .upload-icon {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 1rem;
+        color: #6c757d;
+    }
+
+    .drop-zone-text {
+        font-size: 1.1em;
+        margin-bottom: 0.5rem;
+        color: #212529;
+    }
+
+    .drop-zone-hint {
+        font-size: 0.9em;
+        color: #6c757d;
+        margin: 0.25rem 0;
+    }
+
+    /* Selected Files */
+    .selected-files {
+        margin-top: 1rem;
+    }
+
+    .selected-file {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        margin-bottom: 0.5rem;
+    }
+
+    .selected-file-info {
+        flex: 1;
+    }
+
+    .selected-file-name {
+        font-weight: 500;
+        margin-bottom: 0.25rem;
+    }
+
+    .selected-file-size {
+        font-size: 0.85em;
+        color: #6c757d;
+    }
+
+    .selected-file-remove {
+        padding: 0.25rem 0.5rem;
+        background: #dc3545;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.85em;
+    }
+
+    .selected-file-remove:hover {
+        background: #c82333;
+    }
+
+    /* Upload Actions */
+    .upload-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 1em;
+        transition: all 0.3s ease;
+    }
+
+    .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-primary {
+        background: #007bff;
+        color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        background: #0056b3;
+    }
+
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+
+    .btn-secondary:hover {
+        background: #545b62;
+    }
 </style>
+
+<script>
+// Configuration
+const CHAT_ROOM_ID = {{ chat_room_id }};
+const API_BASE = '/api/chat-rooms';
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+// State
+let selectedFiles = [];
+let eventSource = null;
+
+// DOM Elements
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const selectedFilesContainer = document.getElementById('selected-files');
+const uploadBtn = document.getElementById('upload-btn');
+const clearBtn = document.getElementById('clear-btn');
+const flashMessagesContainer = document.getElementById('flash-messages');
+
+// ==================== Drag & Drop ====================
+
+dropZone.addEventListener('click', () => fileInput.click());
+
+dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('drag-over');
+});
+
+dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('drag-over');
+});
+
+dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+
+    const files = Array.from(e.dataTransfer.files);
+    handleFiles(files);
+});
+
+fileInput.addEventListener('change', (e) => {
+    const files = Array.from(e.target.files);
+    handleFiles(files);
+});
+
+function handleFiles(files) {
+    files.forEach(file => {
+        // Validate file size
+        if (file.size > MAX_FILE_SIZE) {
+            showFlashMessage(`File too large: ${file.name} (Maximum 10MB)`, 'error');
+            return;
+        }
+
+        // Validate file type
+        const validExtensions = ['.pdf', '.txt', '.md'];
+        const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+        if (!validExtensions.includes(fileExtension)) {
+            showFlashMessage(`Invalid file type: ${file.name}`, 'error');
+            return;
+        }
+
+        // Check for duplicates
+        if (selectedFiles.some(f => f.name === file.name)) {
+            showFlashMessage(`File already selected: ${file.name}`, 'error');
+            return;
+        }
+
+        selectedFiles.push(file);
+    });
+
+    updateSelectedFilesUI();
+}
+
+function updateSelectedFilesUI() {
+    selectedFilesContainer.innerHTML = '';
+
+    selectedFiles.forEach((file, index) => {
+        const fileDiv = document.createElement('div');
+        fileDiv.className = 'selected-file';
+        fileDiv.innerHTML = `
+            <div class="selected-file-info">
+                <div class="selected-file-name">${file.name}</div>
+                <div class="selected-file-size">${formatFileSize(file.size)}</div>
+            </div>
+            <button type="button" class="selected-file-remove" onclick="removeFile(${index})">Remove</button>
+        `;
+        selectedFilesContainer.appendChild(fileDiv);
+    });
+
+    uploadBtn.disabled = selectedFiles.length === 0;
+}
+
+function removeFile(index) {
+    selectedFiles.splice(index, 1);
+    updateSelectedFilesUI();
+}
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// ==================== Upload ====================
+
+uploadBtn.addEventListener('click', async () => {
+    if (selectedFiles.length === 0) return;
+
+    uploadBtn.disabled = true;
+    uploadBtn.textContent = 'Uploading...';
+
+    for (const file of selectedFiles) {
+        try {
+            await uploadFile(file);
+            showFlashMessage(`File uploaded successfully: ${file.name}`, 'success');
+        } catch (error) {
+            showFlashMessage(`Upload failed: ${file.name} - ${error.message}`, 'error');
+        }
+    }
+
+    // Clear selected files
+    selectedFiles = [];
+    fileInput.value = '';
+    updateSelectedFilesUI();
+
+    uploadBtn.disabled = false;
+    uploadBtn.textContent = 'Upload (업로드)';
+
+    // Refresh page after 2 seconds to show updated status
+    setTimeout(() => location.reload(), 2000);
+});
+
+async function uploadFile(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${API_BASE}/${CHAT_ROOM_ID}/files`, {
+        method: 'POST',
+        body: formData
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Upload failed');
+    }
+
+    return response.json();
+}
+
+clearBtn.addEventListener('click', () => {
+    selectedFiles = [];
+    fileInput.value = '';
+    updateSelectedFilesUI();
+});
+
+// ==================== SSE (Real-time Updates) ====================
+
+function connectSSE() {
+    if (eventSource) {
+        eventSource.close();
+    }
+
+    const url = `${API_BASE}/${CHAT_ROOM_ID}/files/events`;
+    eventSource = new EventSource(url);
+
+    eventSource.onmessage = (e) => {
+        try {
+            const data = JSON.parse(e.data);
+            handleStatusUpdate(data);
+        } catch (error) {
+            console.error('Failed to parse SSE data:', error);
+        }
+    };
+
+    eventSource.onerror = (error) => {
+        console.error('SSE connection error:', error);
+        // Reconnect after 5 seconds
+        setTimeout(() => connectSSE(), 5000);
+    };
+
+    console.log('SSE connected');
+}
+
+function handleStatusUpdate(data) {
+    if (data.error && data.type === 'stream_error') {
+        console.error('Stream error:', data.error);
+        return;
+    }
+
+    // Find the row for this file
+    const row = document.querySelector(`tr[data-file-id="${data.file_id}"]`);
+    if (!row) return;
+
+    // Update status badge
+    const statusCell = row.querySelector('td:nth-child(4)');
+    if (statusCell) {
+        const statusBadge = statusCell.querySelector('.status-badge');
+        if (statusBadge) {
+            statusBadge.className = `status-badge status-${data.status}`;
+            statusBadge.textContent = getStatusText(data.status);
+        }
+
+        // Handle progress bar for processing status
+        let progressBar = statusCell.querySelector('.progress-bar-container');
+        if (data.status === 'processing') {
+            if (!progressBar) {
+                progressBar = document.createElement('div');
+                progressBar.className = 'progress-bar-container';
+                progressBar.innerHTML = `
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 0%"></div>
+                    </div>
+                    <span class="progress-text">0%</span>
+                `;
+                statusCell.appendChild(progressBar);
+            }
+            // Simulate progress (since backend doesn't provide actual progress)
+            simulateProgress(progressBar);
+        } else if (progressBar && data.status !== 'processing') {
+            progressBar.remove();
+        }
+
+        // Handle error message
+        let errorDiv = statusCell.querySelector('.error-message');
+        if (data.status === 'failed' && data.error_message) {
+            if (!errorDiv) {
+                errorDiv = document.createElement('div');
+                errorDiv.className = 'error-message';
+                statusCell.appendChild(errorDiv);
+            }
+            errorDiv.textContent = data.error_message;
+        } else if (errorDiv) {
+            errorDiv.remove();
+        }
+    }
+
+    // Show flash message on completion
+    if (data.status === 'completed') {
+        showFlashMessage(`File processing completed: ${data.file_name}`, 'success');
+    } else if (data.status === 'failed') {
+        showFlashMessage(`File processing failed: ${data.file_name}`, 'error');
+    }
+}
+
+function getStatusText(status) {
+    switch (status) {
+        case 'processing':
+            return 'Processing (처리 중)';
+        case 'completed':
+            return 'Completed (완료)';
+        case 'failed':
+            return 'Failed (실패)';
+        default:
+            return status;
+    }
+}
+
+function simulateProgress(progressBar) {
+    const fill = progressBar.querySelector('.progress-fill');
+    const text = progressBar.querySelector('.progress-text');
+    let progress = 0;
+
+    const interval = setInterval(() => {
+        progress += Math.random() * 10;
+        if (progress > 90) progress = 90; // Cap at 90% until completion
+
+        if (fill) fill.style.width = `${progress}%`;
+        if (text) text.textContent = `${Math.round(progress)}%`;
+    }, 500);
+
+    // Store interval ID on the element for cleanup
+    progressBar.dataset.intervalId = interval;
+}
+
+// ==================== Flash Messages ====================
+
+function showFlashMessage(message, type = 'info') {
+    const flashDiv = document.createElement('div');
+    flashDiv.className = `flash-message flash-${type}`;
+    flashDiv.textContent = message;
+
+    flashMessagesContainer.appendChild(flashDiv);
+
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        flashDiv.style.animation = 'fadeOut 0.3s ease';
+        setTimeout(() => flashDiv.remove(), 300);
+    }, 5000);
+}
+
+// ==================== Initialize ====================
+
+// Connect to SSE on page load
+connectSSE();
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    if (eventSource) {
+        eventSource.close();
+    }
+});
+</script>
 {% endblock %}

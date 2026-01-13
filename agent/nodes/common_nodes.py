@@ -1,20 +1,28 @@
 from datetime import datetime
-from langchain_core.messages import HumanMessage, AIMessage
+
 from langchain_core.documents import Document
-from core.llm import get_llm
-from repository.conversation_repository import get_history, add_message
-from repository.chat_room_repository import get_chat_room_by_id, update_chat_room_summary
-from repository.persona_repository import get_persona_by_id
-from core.vector_store import get_vector_store
+from langchain_core.messages import AIMessage, HumanMessage
+
 from agent.state import ChatState
+from core.llm import get_llm
 from core.logger import get_logger
+from core.vector_store import get_vector_store
+from repository.chat_room_repository import (
+    get_chat_room_by_id,
+    update_chat_room_summary,
+)
+from repository.conversation_repository import add_message, get_history
+from repository.persona_repository import get_persona_by_id
 
 logger = get_logger(__name__)
 
 async def retrieve_data_node(state: ChatState):
+    """데이터 검색 노드: RAG 검색, 페르소나, 요약 조회"""
     chat_room_id = state["chat_room_id"]
+
+    # 1. 채팅방 정보 조회
     chat_room = await get_chat_room_by_id(chat_room_id)
-    
+
     persona_content = None
     summary = None
     if chat_room:
@@ -23,8 +31,64 @@ async def retrieve_data_node(state: ChatState):
             if persona:
                 persona_content = persona.content
         summary = chat_room.summary
-            
-    return {"persona_content": persona_content, "summary": summary}
+
+    # 2. RAG 검색 수행 (최신 메시지에서 질문 추출)
+    retrieved_context = []
+    messages = state.get("messages", [])
+
+    if messages:
+        # 최신 사용자 메시지 추출
+        from langchain_core.messages import HumanMessage
+
+        user_query = None
+        for msg in reversed(messages):
+            if isinstance(msg, HumanMessage):
+                user_query = msg.content
+                break
+
+        # RAG 검색 실행
+        if user_query and chat_room:
+            try:
+                from services.rag_search_service import get_rag_search_service
+
+                search_service = get_rag_search_service()
+
+                # telegram_chat_id로 검색 (chat_room.id는 UUID)
+                # chat_room 테이블의 telegram_chat_id 사용
+                telegram_chat_id = chat_room.telegram_chat_id
+
+                chunks = await search_service.search(
+                    query=user_query,
+                    chat_room_id=telegram_chat_id,
+                    limit=3,  # 상위 3개 청크
+                    threshold=0.4,  # 유사도 임계값
+                )
+
+                if chunks:
+                    # 검색된 청크를 컨텍스트로 변환
+                    for i, chunk in enumerate(chunks):
+                        context_text = (
+                            f"[문서 {i+1}: {chunk['filename']}]\n"
+                            f"{chunk['content']}\n"
+                            f"(유사도: {chunk['similarity']:.2f})"
+                        )
+                        retrieved_context.append(context_text)
+                        logger.info(
+                            f"RAG 검색 결과: file={chunk['filename']}, "
+                            f"similarity={chunk['similarity']:.2f}"
+                        )
+
+            except Exception as e:
+                logger.error(f"RAG 검색 실패: {e}", exc_info=True)
+
+    # 검색된 컨텍스트를 하나의 문자열로 결합
+    rag_context = "\n\n".join(retrieved_context) if retrieved_context else None
+
+    return {
+        "persona_content": persona_content,
+        "summary": summary,
+        "retrieved_context": rag_context,
+    }
 
 async def save_conversation_node(state: ChatState):
     user_id = state["user_id"]

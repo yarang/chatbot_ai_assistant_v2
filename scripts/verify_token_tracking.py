@@ -7,14 +7,19 @@ Run this after starting the application to verify token tracking works correctly
 
 import asyncio
 import uuid
-from langchain_core.messages import HumanMessage
+
 from core.graph import graph
-from repository.conversation_repository import get_history
-from repository.chat_room_repository import create_chat_room, get_chat_room_by_telegram_id
-from repository.user_repository import create_or_update_user
-from sqlalchemy import select, desc
+from langchain_core.messages import HumanMessage
+from sqlalchemy import desc, select
+
 from core.database import get_async_session
 from models.conversation_model import Conversation
+from repository.chat_room_repository import (
+    create_chat_room,
+    get_chat_room_by_telegram_id,
+)
+from repository.conversation_repository import get_history
+from repository.user_repository import create_or_update_user
 
 
 async def test_token_tracking():

@@ -7,9 +7,10 @@ import uuid
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from core.database import get_async_session, init_db
-from repository.user_repository import upsert_user
 from repository.chat_room_repository import upsert_chat_room
 from repository.conversation_repository import add_message, get_history
+from repository.user_repository import upsert_user
+
 
 async def verify_user_names():
     print("🔍 Verifying retrieving user names in history...")

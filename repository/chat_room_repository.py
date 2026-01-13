@@ -1,7 +1,8 @@
 import uuid
 from typing import Optional, Union
-from sqlalchemy.ext.asyncio import AsyncSession
+
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_async_session
 from models.chat_room_model import ChatRoom
@@ -164,8 +165,8 @@ class ChatRoomRepository:
         Returns:
             ChatRoom 객체 리스트
         """
-        from models.conversation_model import Conversation
         from models.chat_room_model import ChatRoom
+        from models.conversation_model import Conversation
         
         if isinstance(user_id, str):
             user_id = uuid.UUID(user_id)
@@ -248,6 +249,7 @@ class ChatRoomRepository:
             bool: 성공 여부
         """
         import os
+
         from core.logger import get_logger
         from models.knowledge_doc_model import KnowledgeDoc
 

@@ -1,7 +1,9 @@
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_postgres import PGVector
+
 from core.config import get_settings
 from core.database import get_database_url
+
 
 def get_embeddings():
     settings = get_settings()

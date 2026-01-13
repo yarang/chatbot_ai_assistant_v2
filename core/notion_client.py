@@ -1,5 +1,7 @@
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 import httpx
+
 from core.config import get_settings
 from core.logger import get_logger
 

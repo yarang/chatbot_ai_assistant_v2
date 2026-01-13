@@ -1,5 +1,7 @@
 from datetime import datetime
+
 from langchain_core.tools import Tool
+
 
 def get_current_time(query: str = "") -> str:
     """Returns the current local time."""

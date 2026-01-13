@@ -1,10 +1,12 @@
-from typing import Optional, Dict, AsyncIterator
-from langchain_core.messages import HumanMessage
+from typing import AsyncIterator, Dict, Optional
+
+import openai
 from google.api_core import exceptions as google_exceptions
+from langchain_core.messages import HumanMessage
 
 from agent.graph import graph
-from core.logger import get_logger
 from core.config import get_settings
+from core.logger import get_logger
 from services.streaming_helper import StreamBuffer, stream_with_buffer
 
 logger = get_logger(__name__)
@@ -50,6 +52,17 @@ async def ask_question(user_id: Optional[str], chat_room_id: str, question: str,
         except google_exceptions.RetryError:
             logger.warning("Google GenAI Retry Error")
             return "죄송합니다. 요청 처리 중 최대 재배 횟수를 초과했습니다. 잠시 후 다시 시도해 주세요."
+        except openai.RateLimitError as e:
+            logger.warning(f"OpenAI/Groq Rate Limit exceeded: {e}")
+            return "죄송합니다. 현재 사용량이 많아 잠시 후 다시 시도해 주세요."
+        except openai.APIConnectionError as e:
+            logger.error(f"OpenAI/Groq Connection Error: {e}")
+            return "죄송합니다. AI 서버 연결에 문제가 발생했습니다."
+        except openai.APIStatusError as e:
+            logger.error(f"OpenAI/Groq API Error: {e.status_code} - {e.message}")
+            if e.status_code == 429:
+                return "죄송합니다. 현재 사용량이 많아 잠시 후 다시 시도해 주세요."
+            return "죄송합니다. AI 서버 오류가 발생했습니다."
         except Exception as e:
             if "429" in str(e) or "ResourceExhausted" in str(e):
                 logger.warning(f"Rate limit exceeded: {e}")
@@ -98,17 +111,25 @@ async def ask_question_stream(
     try:
         # Initial State
         settings = get_settings()
+        # Determine model name based on API setting
+        if settings.llm_api.lower() == "groq":
+            current_model_name = settings.groq.model_name
+        elif settings.llm_api.lower() == "local" or settings.local_llm.enabled:
+            current_model_name = settings.local_llm.model
+        else:
+            current_model_name = settings.gemini.model_name
+
         initial_state = {
             "messages": [HumanMessage(content=question, name=user_name)],
             "user_id": user_id,
             "chat_room_id": chat_room_id,
             "persona_content": system_prompt,
-            "model_name": settings.gemini.model_name,
+            "model_name": current_model_name,
             "next": ""
         }
         
-        # Stream from graph
-        buffer = StreamBuffer(time_threshold_sec=0.5, char_threshold=50)
+        # Stream from graph with optimized buffer for real-time updates
+        buffer = StreamBuffer(time_threshold_sec=0.3, char_threshold=25)
 
         config = {"recursion_limit": settings.agent.recursion_limit}
         
@@ -123,6 +144,18 @@ async def ask_question_stream(
         except google_exceptions.RetryError:
             logger.warning("Google GenAI Retry Error in stream")
             yield "죄송합니다. 요청 처리 중 최대 재시도 횟수를 초과했습니다. 잠시 후 다시 시도해 주세요."
+        except openai.RateLimitError as e:
+            logger.warning(f"OpenAI/Groq Rate Limit exceeded in stream: {e}")
+            yield "죄송합니다. 현재 사용량이 많아 잠시 후 다시 시도해 주세요."
+        except openai.APIConnectionError as e:
+            logger.error(f"OpenAI/Groq Connection Error in stream: {e}")
+            yield "죄송합니다. AI 서버 연결에 문제가 발생했습니다."
+        except openai.APIStatusError as e:
+            logger.error(f"OpenAI/Groq API Error in stream: {e.status_code} - {e.message}")
+            if e.status_code == 429:
+                yield "죄송합니다. 현재 사용량이 많아 잠시 후 다시 시도해 주세요."
+            else:
+                 yield "죄송합니다. AI 서버 오류가 발생했습니다."
         except Exception as e:
             if "429" in str(e) or "ResourceExhausted" in str(e):
                 logger.warning(f"Rate limit exceeded in stream: {e}")
@@ -141,6 +174,7 @@ async def ask_question_stream(
 
 from core.llm import get_llm
 from repository.conversation_repository import get_history
+
 
 async def summarize_chat_room(chat_room_id: str, user_id: str) -> str:
     """채팅방 대화 내용을 요약합니다.
@@ -167,7 +201,8 @@ async def summarize_chat_room(chat_room_id: str, user_id: str) -> str:
             conversation_text += f"{name} ({role}): {message}\n"
             
         # 요약 요청 프롬프트
-        llm = get_llm("gemini-2.5-flash") # Use 2.5 flash
+        # 요약 요청 프롬프트
+        llm = get_llm() # Use default configured LLM
         
         prompt = f"""
         다음 대화 내용을 간략하게 요약해주세요. 주요 주제와 결론 위주로 정리해주세요.

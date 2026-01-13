@@ -1,18 +1,18 @@
-from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, Body, Depends
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel
 
+from core.security import get_current_user_required
+from repository.chat_room_repository import set_chat_room_persona
 from repository.persona_repository import (
     create_persona,
+    delete_persona,
     get_persona_by_id,
+    get_public_personas,
     get_user_personas,
     update_persona,
-    delete_persona,
-    get_public_personas,
 )
-from repository.chat_room_repository import set_chat_room_persona
-from core.security import get_current_user_required
-
 
 router = APIRouter()
 
@@ -286,9 +286,9 @@ async def set_chat_room_persona_endpoint(
     채팅방에 Persona 설정
     """
     # Verify chat room ownership
+    from core.config import get_settings
     from repository.chat_room_repository import get_chat_room_by_id
     from repository.conversation_repository import get_history
-    from core.config import get_settings
 
     settings = get_settings()
     user_telegram_id = int(current_user["id"])
@@ -345,9 +345,10 @@ async def create_evaluation_endpoint(
     """
     Persona 평가 생성
     """
-    from repository.user_repository import get_user_by_telegram_id
-    from repository.evaluation_repository import create_evaluation
     import uuid
+
+    from repository.evaluation_repository import create_evaluation
+    from repository.user_repository import get_user_by_telegram_id
 
     db_user = await get_user_by_telegram_id(int(current_user["id"]))
     if not db_user:
@@ -379,8 +380,9 @@ async def get_evaluations_endpoint(
     """
     Persona 평가 목록 조회
     """
-    from repository.evaluation_repository import get_persona_evaluations
     import uuid
+
+    from repository.evaluation_repository import get_persona_evaluations
 
     evaluations = await get_persona_evaluations(uuid.UUID(persona_id))
     return [

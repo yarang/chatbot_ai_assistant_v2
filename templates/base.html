@@ -8,6 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+    <a href="#main-content" class="skip-to-content">Skip to main content</a>
+
     <header>
         <a href="/dashboard" class="logo">AI Assistant</a>
         <nav>
@@ -17,22 +19,54 @@
             {% if is_admin %}
             <a href="/admin">Admin</a>
             {% endif %}
+            <button id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode">
+                <span id="theme-icon">🌙</span>
+            </button>
             {% if user %}
-            <span style="margin-left: 1.5rem; color: var(--text-muted); display: inline-flex; align-items: center; gap: 0.5rem;">
+            <div style="display: inline-flex; align-items: center; gap: 0.5rem; margin-left: var(--spacing-md);">
                 {{ user.first_name }}
                 {% if is_admin %}
                 <span class="badge" style="background-color: var(--primary-color); color: white; font-size: 0.7rem; padding: 0.1rem 0.4rem;">ADMIN</span>
                 {% else %}
                 <span class="badge" style="background-color: #6b7280; color: white; font-size: 0.7rem; padding: 0.1rem 0.4rem;">USER</span>
                 {% endif %}
-            </span>
+            </div>
             <a href="/logout">Logout</a>
             {% endif %}
         </nav>
     </header>
 
-    <main class="container">
+    <main id="main-content" class="container">
         {% block content %}{% endblock %}
     </main>
+
+    <script>
+        // Dark mode toggle
+        const themeToggle = document.getElementById('theme-toggle');
+        const themeIcon = document.getElementById('theme-icon');
+        const html = document.documentElement;
+
+        // Load saved theme or prefer system preference
+        const savedTheme = localStorage.getItem('theme');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+        if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+            html.setAttribute('data-theme', 'dark');
+            themeIcon.textContent = '☀️';
+        }
+
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = html.getAttribute('data-theme');
+            if (currentTheme === 'dark') {
+                html.removeAttribute('data-theme');
+                localStorage.setItem('theme', 'light');
+                themeIcon.textContent = '🌙';
+            } else {
+                html.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+                themeIcon.textContent = '☀️';
+            }
+        });
+    </script>
 </body>
 </html>

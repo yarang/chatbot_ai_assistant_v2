@@ -1,11 +1,16 @@
-from langgraph.graph import StateGraph, START, END
-from agent.state import ChatState
+from langgraph.graph import END, START, StateGraph
+
+from agent.nodes.chat_node import general_assistant_node
+from agent.nodes.common_nodes import (
+    retrieve_data_node,
+    save_conversation_node,
+    summarize_conversation_node,
+)
+from agent.nodes.notion_node import notion_node
 from agent.nodes.router_node import supervisor_node
 from agent.nodes.search_node import researcher_node
-from agent.nodes.chat_node import general_assistant_node
-from agent.nodes.notion_node import notion_node
 from agent.nodes.tools_node import tools_node
-from agent.nodes.common_nodes import retrieve_data_node, save_conversation_node, summarize_conversation_node
+from agent.state import ChatState
 
 # Define Graph
 workflow = StateGraph(ChatState)

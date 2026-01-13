@@ -48,6 +48,28 @@ class GeminiSettings(BaseSettings):
     )
 
 
+class GroqSettings(BaseSettings):
+    api_key: Optional[str] = None
+    model_name: str = "llama3-70b-8192"
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_prefix="GROQ_",
+        extra="ignore"
+    )
+
+
+class ZaiSettings(BaseSettings):
+    api_key: Optional[str] = None
+    model_name: str = "glm-4-flash"
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_prefix="ZAI_",
+        extra="ignore"
+    )
+
+
 class NotionSettings(BaseSettings):
     api_key: Optional[str] = None
     database_id: Optional[str] = None
@@ -60,7 +82,7 @@ class NotionSettings(BaseSettings):
 
 
 class AgentSettings(BaseSettings):
-    recursion_limit: int = 20  # Maximum recursion depth for LangGraph
+    recursion_limit: int = 50  # Maximum recursion depth for LangGraph
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -82,19 +104,44 @@ class LocalLLMSettings(BaseSettings):
     )
 
 
+class SearchSettings(BaseSettings):
+    """Web search engine configuration."""
+    engine: str = "ddg"  # Options: ddg (DuckDuckGo), tavily, google
+    max_results: int = 3  # Maximum number of search results to return
+    timeout: float = 10.0  # Search timeout in seconds
+
+    # Tavily API key (if using tavily engine)
+    tavily_api_key: Optional[str] = None
+
+    # Google Custom Search API keys (if using google engine)
+    google_api_key: Optional[str] = None
+    google_cse_id: Optional[str] = None
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_prefix="SEARCH_",
+        extra="ignore"
+    )
+
+
 class Settings(BaseSettings):
     log_level: str = "INFO"
+    llm_api: str = "Gemini"  # Options: Gemini, Groq, Z.ai, Local
     admin_ids: List[int] = []
-    tavily_api_key: Optional[str] = None
+
+    tavily_api_key: Optional[str] = None  # Deprecated: Use search.tavily_api_key
     secret_key: str = "change-me-to-a-secure-random-string"  # Mandatory SECRET_KEY
 
     # Nested settings
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     telegram: TelegramSettings = Field(default_factory=TelegramSettings)
     gemini: GeminiSettings = Field(default_factory=GeminiSettings)
+    groq: GroqSettings = Field(default_factory=GroqSettings)
+    zai: ZaiSettings = Field(default_factory=ZaiSettings)
     notion: NotionSettings = Field(default_factory=NotionSettings)
     agent: AgentSettings = Field(default_factory=AgentSettings)
     local_llm: LocalLLMSettings = Field(default_factory=LocalLLMSettings)
+    search: SearchSettings = Field(default_factory=SearchSettings)
 
     model_config = SettingsConfigDict(
         env_file=".env",

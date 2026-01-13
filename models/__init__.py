@@ -4,13 +4,13 @@
 SQLAlchemy ORM 모델들을 export합니다.
 """
 
-from models.user_model import User
-from models.conversation_model import Conversation
+from core.database import Base
 from models.chat_room_model import ChatRoom
-from models.persona_model import Persona
+from models.conversation_model import Conversation
 from models.evaluation_model import PersonaEvaluation
 from models.knowledge_doc_model import KnowledgeDoc
-from core.database import Base
+from models.persona_model import Persona
+from models.user_model import User
 
 # 테이블 생성 순서 지정
 # Base.metadata.tables에 실제 존재하는 테이블만 순서 지정

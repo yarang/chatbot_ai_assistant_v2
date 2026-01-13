@@ -1,7 +1,8 @@
 import uuid
 from typing import Optional, Union
-from sqlalchemy.ext.asyncio import AsyncSession
+
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_async_session
 from models.user_model import User

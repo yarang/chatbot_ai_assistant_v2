@@ -1,17 +1,26 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Optional
 from datetime import datetime
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Integer, ForeignKey, TIMESTAMP, func, CheckConstraint, UniqueConstraint
+from typing import TYPE_CHECKING, Optional
+
+from sqlalchemy import (
+    TIMESTAMP,
+    CheckConstraint,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
 
 if TYPE_CHECKING:
-    from models.user_model import User
     from models.persona_model import Persona
+    from models.user_model import User
 
 
 class PersonaEvaluation(Base):

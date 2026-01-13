@@ -15,7 +15,7 @@ if "ADMIN_IDS" not in os.environ:
 
 async def test_repository_logic():
     print("Testing Repo Logic...")
-    from repository.chat_room_repository import ChatRoomRepository # Direct import
+    from repository.chat_room_repository import ChatRoomRepository  # Direct import
     
     repo = ChatRoomRepository()
     mock_session = AsyncMock()

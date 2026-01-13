@@ -1,20 +1,21 @@
 import asyncio
-import uuid
 import os
 import sys
+import uuid
 
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from core.graph import graph
 from langchain_core.messages import HumanMessage
-from repository.user_repository import upsert_user
-from repository.chat_room_repository import upsert_chat_room
-from core.database import get_engine, Base
-from models.user_model import User
-from models.persona_model import Persona
+
+from core.database import Base, get_engine
 from models.chat_room_model import ChatRoom
 from models.conversation_model import Conversation
+from models.persona_model import Persona
+from models.user_model import User
+from repository.chat_room_repository import upsert_chat_room
+from repository.user_repository import upsert_user
 
 # Set creation order for init_db (Optional if using create_all)
 User.__table__.info["creation_order"] = 1

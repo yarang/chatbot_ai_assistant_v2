@@ -1,7 +1,10 @@
 
 import asyncio
+
 from langchain_core.messages import AIMessage, HumanMessage
+
 from agent.nodes.router_node import supervisor_node
+
 
 async def test_supervisor_loop_prevention():
     print("Testing Supervisor Loop Prevention...")
