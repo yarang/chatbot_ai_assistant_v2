@@ -19,6 +19,7 @@ class ChatState(TypedDict):
     persona_content: Optional[str]
     model_name: Optional[str]
     summary: Optional[str]
+    retrieved_context: Optional[str]  # RAG 검색 결과
     next: str
     input_tokens_used: Optional[int]
     output_tokens_used: Optional[int]
