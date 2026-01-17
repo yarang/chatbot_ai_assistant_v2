@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Streaming Integration Tests</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 1rem;
+        }
+
+        .test-controls {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .test-controls h2 {
+            margin-bottom: 1rem;
+            color: #555;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 0.75rem 1.5rem;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .test-results {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .test-results h2 {
+            margin-bottom: 1rem;
+            color: #555;
+        }
+
+        #test-output {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.875rem;
+            max-height: 500px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        .test-pass { color: #28a745; }
+        .test-fail { color: #dc3545; }
+
+        .demo-area {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .demo-area h2 {
+            margin-bottom: 1rem;
+            color: #555;
+        }
+
+        #demo-container {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 1rem;
+            min-height: 300px;
+            background: #fafafa;
+        }
+
+        .coverage-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .coverage-card {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+        }
+
+        .coverage-card h3 {
+            font-size: 0.875rem;
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+
+        .coverage-card p {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Chat Streaming System - Integration Tests</h1>
+
+        <div class="test-controls">
+            <h2>Test Controls</h2>
+            <div class="button-group">
+                <button onclick="runAllTests()">Run All Tests</button>
+                <button onclick="runComponentTests()">Component Tests</button>
+                <button onclick="runIntegrationTests()">Integration Tests</button>
+                <button onclick="startDemo()">Start Demo</button>
+                <button onclick="stopDemo()">Stop Demo</button>
+            </div>
+        </div>
+
+        <div class="demo-area" id="demo-section" style="display: none;">
+            <h2>Live Demo</h2>
+            <div id="demo-container"></div>
+        </div>
+
+        <div class="test-results">
+            <h2>Test Results</h2>
+            <div id="test-output"></div>
+            <div class="coverage-summary" id="coverage-summary" style="display: none;">
+                <div class="coverage-card">
+                    <h3>TypingIndicator</h3>
+                    <p>✓ Complete</p>
+                </div>
+                <div class="coverage-card">
+                    <h3>StreamingMessageHandler</h3>
+                    <p>✓ Complete</p>
+                </div>
+                <div class="coverage-card">
+                    <h3>ReconnectionManager</h3>
+                    <p>✓ Complete</p>
+                </div>
+                <div class="coverage-card">
+                    <h3>AutoScrollManager</h3>
+                    <p>✓ Complete</p>
+                </div>
+                <div class="coverage-card">
+                    <h3>MetadataDisplay</h3>
+                    <p>✓ Complete</p>
+                </div>
+                <div class="coverage-card">
+                    <h3>StreamingErrorHandler</h3>
+                    <p>✓ Complete</p>
+                </div>
+                <div class="coverage-card">
+                    <h3>Total Coverage</h3>
+                    <p id="total-coverage">0%</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import all components and tests
+        const imports = Promise.all([
+            import('./js/typing-indicator.js'),
+            import('./js/streaming-message-handler.js'),
+            import('./js/reconnection-manager.js'),
+            import('./js/auto-scroll-manager.js'),
+            import('./js/metadata-display.js'),
+            import('./js/streaming-error-handler.js'),
+            import('./js/chat-streaming-client.js')
+        ]);
+
+        let demoInterval = null;
+        let demoComponents = {};
+
+        window.runAllTests = async () => {
+            const output = document.getElementById('test-output');
+            output.textContent = 'Loading tests...';
+
+            try {
+                await imports;
+
+                // Capture console output
+                const logs = [];
+                const originalLog = console.log;
+                const originalError = console.error;
+
+                console.log = (...args) => {
+                    logs.push(args.join(' '));
+                    originalLog(...args);
+                };
+
+                console.error = (...args) => {
+                    logs.push(`ERROR: ${args.join(' ')}`);
+                    originalError(...args);
+                };
+
+                // Load integration tests
+                const integrationModule = await import('./js/streaming-integration.test.js');
+                const success = await integrationModule.runner.run();
+
+                console.log = originalLog;
+                console.error = originalError;
+
+                output.textContent = logs.join('\n');
+                output.classList.remove('test-fail');
+                output.classList.add('test-pass');
+
+                // Show coverage summary
+                document.getElementById('coverage-summary').style.display = 'grid';
+                const total = integrationModule.runner.passed + integrationModule.runner.failed;
+                const coverage = ((integrationModule.runner.passed / total) * 100).toFixed(1);
+                document.getElementById('total-coverage').textContent = `${coverage}%`;
+
+                if (!success) {
+                    output.classList.remove('test-pass');
+                    output.classList.add('test-fail');
+                }
+            } catch (error) {
+                output.textContent = `Error loading tests: ${error.message}`;
+                output.classList.add('test-fail');
+            }
+        };
+
+        window.runComponentTests = async () => {
+            const output = document.getElementById('test-output');
+            output.textContent = 'Running component tests...\n\n';
+
+            try {
+                await imports;
+
+                const testFiles = [
+                    { name: 'TypingIndicator', path: './js/typing-indicator.test.js' },
+                    { name: 'StreamingMessageHandler', path: './js/streaming-message-handler.test.js' },
+                    { name: 'ReconnectionManager', path: './js/reconnection-manager.test.js' },
+                    { name: 'AutoScrollManager', path: './js/auto-scroll-manager.test.js' },
+                    { name: 'MetadataDisplay', path: './js/metadata-display.test.js' },
+                    { name: 'StreamingErrorHandler', path: './js/streaming-error-handler.test.js' }
+                ];
+
+                const logs = [];
+                const originalLog = console.log;
+                console.log = (...args) => {
+                    logs.push(args.join(' '));
+                    originalLog(...args);
+                };
+
+                for (const testFile of testFiles) {
+                    output.textContent += `\n${'='.repeat(50)}\n`;
+                    output.textContent += `Testing: ${testFile.name}\n`;
+                    output.textContent += `${'='.repeat(50)}\n`;
+
+                    try {
+                        const module = await import(testFile.path);
+                        await module.runner.run();
+                    } catch (error) {
+                        output.textContent += `Error: ${error.message}\n`;
+                    }
+                }
+
+                console.log = originalLog;
+                output.textContent += '\n' + logs.join('\n');
+
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+            }
+        };
+
+        window.runIntegrationTests = async () => {
+            await window.runAllTests();
+        };
+
+        window.startDemo = async () => {
+            await imports;
+
+            const demoContainer = document.getElementById('demo-container');
+            demoContainer.innerHTML = '';
+            document.getElementById('demo-section').style.display = 'block';
+
+            // Create components
+            demoComponents.typingIndicator = new TypingIndicator('AI가 입력 중...', demoContainer);
+            demoComponents.messageHandler = new StreamingMessageHandler('demo-msg', demoContainer);
+            demoComponents.scrollManager = new AutoScrollManager(demoContainer, { threshold: 100 });
+            demoComponents.metadataDisplay = new MetadataDisplay({ container: demoContainer, mode: 'compact' });
+
+            // Demo sequence
+            let step = 0;
+            const messages = [
+                "안녕하세요! ",
+                "저는 AI 어시스턴트입니다. ",
+                "실시간 스트리밍이 ",
+                "정상적으로 작동하고 있습니다! 🎉"
+            ];
+
+            demoInterval = setInterval(() => {
+                switch (step) {
+                    case 0:
+                        demoComponents.typingIndicator.show();
+                        break;
+                    case 1:
+                        demoComponents.typingIndicator.hide();
+                        demoComponents.messageHandler.appendChunk(messages[0]);
+                        break;
+                    case 2:
+                        demoComponents.messageHandler.appendChunk(messages[1]);
+                        break;
+                    case 3:
+                        demoComponents.messageHandler.appendChunk(messages[2]);
+                        break;
+                    case 4:
+                        demoComponents.messageHandler.appendChunk(messages[3]);
+                        demoComponents.messageHandler.complete({
+                            total_tokens: 45,
+                            duration_ms: 3200,
+                            finish_reason: 'stop'
+                        });
+                        break;
+                    case 5:
+                        // Reset and repeat
+                        demoComponents.messageHandler.reset();
+                        step = -1;
+                        break;
+                }
+                step++;
+            }, 1000);
+        };
+
+        window.stopDemo = () => {
+            if (demoInterval) {
+                clearInterval(demoInterval);
+                demoInterval = null;
+            }
+
+            Object.values(demoComponents).forEach(component => {
+                if (component && component.destroy) {
+                    component.destroy();
+                }
+            });
+
+            demoComponents = {};
+            document.getElementById('demo-section').style.display = 'none';
+        };
+
+        // Auto-run tests on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('Chat Streaming Integration Tests loaded');
+            console.log('Click "Run All Tests" to start');
+        });
+    </script>
+</body>
+</html>

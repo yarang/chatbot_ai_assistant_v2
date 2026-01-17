@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat Streaming Client Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+    h1 {
+      color: #333;
+      border-bottom: 2px solid #4CAF50;
+      padding-bottom: 10px;
+    }
+    .test-section {
+      margin: 20px 0;
+      padding: 20px;
+      background: #f5f5f5;
+      border-radius: 8px;
+    }
+    .test-results {
+      margin: 20px 0;
+      padding: 15px;
+      background: #fff;
+      border-radius: 8px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .test-pass {
+      color: #4CAF50;
+    }
+    .test-fail {
+      color: #f44336;
+    }
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    #messages {
+      margin: 20px 0;
+      padding: 15px;
+      background: #f9f9f9;
+      border-radius: 8px;
+      min-height: 200px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .message {
+      margin: 10px 0;
+      padding: 10px;
+      background: white;
+      border-radius: 4px;
+      border-left: 4px solid #4CAF50;
+    }
+    .typing-indicator {
+      color: #888;
+      font-style: italic;
+    }
+    .completion {
+      color: #4CAF50;
+      font-weight: bold;
+    }
+    .error {
+      color: #f44336;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧪 ChatStreamingClient Test Suite</h1>
+
+  <div class="test-section">
+    <h2>Unit Tests</h2>
+    <p>Run automated unit tests for ChatStreamingClient</p>
+    <button onclick="runUnitTests()">Run Unit Tests</button>
+    <div id="unit-test-results" class="test-results"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>Integration Test</h2>
+    <p>Test real SSE connection with backend</p>
+    <input type="text" id="test-message" placeholder="Enter test message" value="Hello, world!">
+    <button onclick="runIntegrationTest()">Start Integration Test</button>
+    <div id="messages"></div>
+  </div>
+
+  <script type="module">
+    // Import the client
+    import { ChatStreamingClient } from './js/chat-streaming-client.js';
+
+    // Make available globally
+    window.ChatStreamingClient = ChatStreamingClient;
+
+    // Run unit tests
+    window.runUnitTests = async function() {
+      const resultsDiv = document.getElementById('unit-test-results');
+      resultsDiv.innerHTML = '<div style="color: #666;">Loading tests...</div>';
+
+      try {
+        // Load and execute test file
+        const response = await fetch('./js/chat-streaming-client.test.js');
+        const testCode = await response.text();
+
+        // Execute tests
+        resultsDiv.innerHTML = '<div style="color: #666;">Running tests...</div>';
+
+        // Create test environment
+        const testScript = document.createElement('script');
+        testScript.textContent = testCode + '\nwindow.testChatStreamingClient();';
+        document.head.appendChild(testScript);
+      } catch (error) {
+        resultsDiv.innerHTML = `<div class="test-fail">Error loading tests: ${error.message}</div>`;
+      }
+    };
+
+    // Run integration test
+    window.runIntegrationTest = async function() {
+      const messageInput = document.getElementById('test-message');
+      const messagesDiv = document.getElementById('messages');
+      const message = messageInput.value.trim();
+
+      if (!message) {
+        alert('Please enter a test message');
+        return;
+      }
+
+      messagesDiv.innerHTML = '<div class="message">Starting test...</div>';
+
+      try {
+        const client = new ChatStreamingClient('/api/streaming/chat');
+
+        // Set up event handlers
+        client.onMessage((text) => {
+          const msgDiv = document.createElement('div');
+          msgDiv.className = 'message';
+          msgDiv.textContent = text;
+          messagesDiv.appendChild(msgDiv);
+          messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        });
+
+        client.onTyping((isTyping) => {
+          const typingDiv = document.createElement('div');
+          typingDiv.className = 'typing-indicator';
+          typingDiv.textContent = isTyping ? 'Bot is typing...' : 'Bot stopped typing';
+          messagesDiv.appendChild(typingDiv);
+          messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        });
+
+        client.onComplete((metadata) => {
+          const completeDiv = document.createElement('div');
+          completeDiv.className = 'completion';
+          completeDiv.textContent = `✓ Stream completed: ${metadata.finish_reason}`;
+          messagesDiv.appendChild(completeDiv);
+          messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        });
+
+        client.onError((error) => {
+          const errorDiv = document.createElement('div');
+          errorDiv.className = 'error';
+          errorDiv.textContent = `✗ Error: ${error.message}`;
+          messagesDiv.appendChild(errorDiv);
+          messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        });
+
+        // Start streaming
+        await client.startStreaming(message);
+
+      } catch (error) {
+        messagesDiv.innerHTML += `<div class="error">✗ Test failed: ${error.message}</div>`;
+      }
+    };
+
+    // Override console.log to show test results
+    const originalLog = console.log;
+    const originalError = console.error;
+
+    console.log = function(...args) {
+      const resultsDiv = document.getElementById('unit-test-results');
+      if (resultsDiv) {
+        const logDiv = document.createElement('div');
+        logDiv.innerHTML = args.join(' ');
+        if (logDiv.textContent.includes('✓')) {
+          logDiv.className = 'test-pass';
+        }
+        resultsDiv.appendChild(logDiv);
+      }
+      originalLog.apply(console, args);
+    };
+
+    console.error = function(...args) {
+      const resultsDiv = document.getElementById('unit-test-results');
+      if (resultsDiv) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'test-fail';
+        errorDiv.innerHTML = args.join(' ');
+        resultsDiv.appendChild(errorDiv);
+      }
+      originalError.apply(console, args);
+    };
+  </script>
+</body>
+</html>

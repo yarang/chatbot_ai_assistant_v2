@@ -3,6 +3,7 @@ Streaming helper utilities for buffering and processing LangGraph stream events.
 
 Features:
 - Optimized buffering for real-time streaming (20-30 char chunks)
+- Adaptive buffer sizing based on chunk history
 - Telegram MarkdownV2 support
 - Retry logic for message updates
 - Typing indicator support
@@ -82,6 +83,93 @@ class StreamBuffer:
     def peek(self) -> str:
         """Peek at current buffer without flushing."""
         return self.buffer
+
+
+class AdaptiveStreamBuffer(StreamBuffer):
+    """
+    Adaptive streaming buffer that dynamically adjusts threshold based on chunk history.
+
+    Uses moving average of recent chunk sizes to optimize flush timing for
+    better real-time streaming experience.
+    """
+
+    def __init__(
+        self,
+        time_threshold_sec: float = 0.3,
+        initial_char_threshold: int = 25,
+        max_buffer_size: int = 100,
+        history_size: int = 10,
+    ):
+        """
+        Args:
+            time_threshold_sec: Flush if this many seconds have passed since last flush (default: 0.3s)
+            initial_char_threshold: Initial character threshold (default: 25)
+            max_buffer_size: Maximum buffer size before force flush (default: 100)
+            history_size: Number of recent chunks to track for averaging (default: 10)
+        """
+        super().__init__(time_threshold_sec, initial_char_threshold, max_buffer_size)
+        self.initial_threshold = initial_char_threshold
+        self.history_size = history_size
+        self.chunk_history: list[int] = []
+        self.total_chunks = 0
+
+    def add(self, text: str) -> Optional[str]:
+        """
+        Add text to buffer with adaptive threshold adjustment.
+
+        Args:
+            text: Text to add
+
+        Returns:
+            Flushed text if threshold reached, else None
+        """
+        self.buffer += text
+
+        # Check if we should flush
+        time_elapsed = time.time() - self.last_flush_time
+        should_flush = (
+            len(self.buffer) >= self.char_threshold
+            or time_elapsed >= self.time_threshold
+            or len(self.buffer) >= self.max_buffer_size
+        )
+
+        if should_flush:
+            flushed_text = self.flush()
+            # Track chunk size for adaptive adjustment
+            self._track_chunk_size(len(flushed_text))
+            return flushed_text
+
+        return None
+
+    def _track_chunk_size(self, size: int) -> None:
+        """Track chunk size and adjust threshold based on history."""
+        self.chunk_history.append(size)
+        self.total_chunks += 1
+
+        # Keep only recent history
+        if len(self.chunk_history) > self.history_size:
+            self.chunk_history.pop(0)
+
+        # Adjust threshold after collecting enough samples
+        if len(self.chunk_history) >= 5:
+            avg_chunk_size = sum(self.chunk_history) / len(self.chunk_history)
+            # Set threshold to 1.5x average for optimal batching
+            self.char_threshold = max(15, int(avg_chunk_size * 1.5))
+            self.char_threshold = min(self.char_threshold, 50)  # Cap at 50
+
+    def get_stats(self) -> dict:
+        """Get buffer statistics."""
+        avg_chunk = (
+            sum(self.chunk_history) / len(self.chunk_history)
+            if self.chunk_history
+            else 0
+        )
+        return {
+            "total_chunks": self.total_chunks,
+            "avg_chunk_size": avg_chunk,
+            "current_threshold": self.char_threshold,
+            "history_size": len(self.chunk_history),
+        }
 
 
 class TelegramMarkdownFormatter:
@@ -198,7 +286,10 @@ def extract_text_from_stream_event(event: dict) -> Optional[str]:
                             # Handle multimodal content (list of dicts)
                             text_parts = []
                             for item in last_msg.content:
-                                if isinstance(item, dict) and item.get("type") == "text":
+                                if (
+                                    isinstance(item, dict)
+                                    and item.get("type") == "text"
+                                ):
                                     text_parts.append(item.get("text", ""))
                             return "".join(text_parts)
                         return str(last_msg.content)

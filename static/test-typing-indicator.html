@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TypingIndicator Tests</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        .test-results {
+            background: #f5f5f5;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 2rem;
+        }
+        .test-pass {
+            color: #28a745;
+        }
+        .test-fail {
+            color: #dc3545;
+        }
+        #demo-area {
+            border: 2px dashed #ccc;
+            padding: 2rem;
+            margin: 2rem 0;
+            border-radius: 8px;
+        }
+        /* Typing indicator styles from component */
+        :root {
+            --primary-color: #007bff;
+            --bg-secondary: #f5f5f5;
+            --text-muted: #6c757d;
+        }
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0.75rem 1rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .typing-indicator-visible {
+            opacity: 1;
+        }
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            animation: typing-bounce 1.4s infinite ease-in-out both;
+        }
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        .typing-dot:nth-child(3) { animation-delay: 0s; }
+        @keyframes typing-bounce {
+            0%, 80%, 100% {
+                transform: scale(0);
+                opacity: 0.5;
+            }
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        .typing-text {
+            margin-left: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+        .controls {
+            margin: 1rem 0;
+        }
+        .controls button {
+            padding: 0.5rem 1rem;
+            margin-right: 0.5rem;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .controls button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>TypingIndicator Component Tests</h1>
+
+    <div id="demo-area">
+        <h2>Live Demo</h2>
+        <div id="indicator-container"></div>
+        <div class="controls">
+            <button onclick="demoShow()">Show</button>
+            <button onclick="demoHide()">Hide</button>
+            <button onclick="demoSetText()">Set Text</button>
+            <button onclick="demoDestroy()">Destroy</button>
+            <button onclick="demoRecreate()">Recreate</button>
+        </div>
+    </div>
+
+    <div class="test-results">
+        <h3>Test Results</h3>
+        <pre id="test-output"></pre>
+    </div>
+
+    <script type="module">
+        // Import TypingIndicator
+        import { TypingIndicator } from './js/typing-indicator.js';
+
+        // Make available globally for demo
+        window.TypingIndicator = TypingIndicator;
+
+        // Demo functions
+        let demoIndicator = null;
+
+        window.demoShow = () => {
+            if (!demoIndicator) {
+                demoIndicator = new TypingIndicator("Demo: AI가 입력 중...", document.getElementById('indicator-container'));
+            }
+            demoIndicator.show();
+        };
+
+        window.demoHide = () => {
+            if (demoIndicator) {
+                demoIndicator.hide();
+            }
+        };
+
+        window.demoSetText = () => {
+            if (demoIndicator) {
+                const texts = [
+                    "AI가 입력 중...",
+                    "AI is thinking...",
+                    "처리 중입니다...",
+                    "Please wait..."
+                ];
+                const randomText = texts[Math.floor(Math.random() * texts.length)];
+                demoIndicator.setText(randomText);
+            }
+        };
+
+        window.demoDestroy = () => {
+            if (demoIndicator) {
+                demoIndicator.destroy();
+                demoIndicator = null;
+            }
+        };
+
+        window.demoRecreate = () => {
+            demoIndicator = new TypingIndicator("New Instance!", document.getElementById('indicator-container'));
+            demoIndicator.show();
+        };
+
+        // Import and run tests
+        import('./js/typing-indicator.test.js').then((module) => {
+            console.log('Running tests...');
+            const output = document.getElementById('test-output');
+
+            // Capture console.log
+            const originalLog = console.log;
+            const logs = [];
+
+            console.log = (...args) => {
+                logs.push(args.join(' '));
+                originalLog(...args);
+            };
+
+            module.runner.run().then((success) => {
+                console.log = originalLog;
+                output.textContent = logs.join('\n');
+
+                if (success) {
+                    output.classList.add('test-pass');
+                } else {
+                    output.classList.add('test-fail');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

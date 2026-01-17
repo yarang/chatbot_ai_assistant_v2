@@ -1,20 +1,42 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard - AI Assistant{% endblock %}
+{% block title %}Chat - AI Assistant{% endblock %}
 
 {% block content %}
-<div style="display: flex; gap: 2rem; height: calc(100vh - 120px);">
+<!-- Metrics Dashboard -->
+{% from 'components/metrics_dashboard.html' import metrics_dashboard %}
+{{ metrics_dashboard() }}
+
+{% from 'components/typing_indicator.html' import typing_indicator_styles, typing_indicator_container %}
+{{ typing_indicator_styles() }}
+
+<div class="chat-container" style="display: flex; gap: 2rem; height: calc(100vh - 320px); min-height: 500px;">
     <!-- Sidebar: Conversation List -->
-    <aside style="width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 1rem; border-right: 1px solid var(--border-color); padding-right: 1.5rem; overflow-y: auto;">
+    <aside class="chat-sidebar" style="width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 1rem; border-right: 1px solid var(--border-color); padding-right: 1.5rem; overflow-y: auto;">
         <div class="flex-between">
             <h2 style="font-size: 1.25rem; font-weight: 600;">Conversations</h2>
+            <span class="badge badge-secondary">{{ chat_rooms|length }}</span>
         </div>
-        
-        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+
+        <div class="search-container" style="margin-bottom: var(--spacing-sm);">
+            <span class="search-icon">🔍</span>
+            <input
+                type="text"
+                id="conversation-search"
+                class="search-input"
+                placeholder="Search conversations..."
+                aria-label="Search conversations"
+            >
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;" id="conversation-list">
             {% if chat_rooms %}
                 {% for room in chat_rooms %}
-                    <a href="/dashboard?room_id={{ room.id }}" 
-                       class="card conversation-item {% if current_room and current_room.id|string == room.id|string %}active{% endif %}" 
+                    <a href="/dashboard?room_id={{ room.id }}"
+                       class="card conversation-item {% if current_room and current_room.id|string == room.id|string %}active{% endif %}"
+                       data-name="{{ room.name or room.type }}"
+                       data-username="{{ room.username or '' }}"
+                       data-room-id="{{ room.id }}"
                        style="text-decoration: none; color: inherit;">
                         <div style="font-weight: 600; font-size: 0.95rem;">
                             {% if room.name %}
@@ -43,91 +65,589 @@
         </div>
     </aside>
 
-    <!-- Main Content: Chat History -->
-    <section style="flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;">
+    <!-- Main Content: Chat Interface -->
+    <section class="chat-main" style="flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;">
         {% if current_room %}
-            <div class="flex-between mb-4">
-                <h2 style="font-size: 1.5rem;">
-                    {% if current_room.name %}
-                        {{ current_room.name }}
-                    {% elif current_room.type == 'private' %}
-                        Private Chat
-                    {% else %}
-                        {{ current_room.type|title }}
+            <!-- Chat Header -->
+            <div class="chat-header" style="display: flex; justify-content: space-between; align-items: center; padding: var(--spacing-md) 0; border-bottom: 1px solid var(--border-color); margin-bottom: var(--spacing-md);">
+                <div style="display: flex; align-items: center; gap: var(--spacing-md);">
+                    <h2 style="font-size: 1.25rem; margin: 0;">
+                        {% if current_room.name %}
+                            {{ current_room.name }}
+                        {% elif current_room.type == 'private' %}
+                            Private Chat
+                        {% else %}
+                            {{ current_room.type|title }}
+                        {% endif %}
+                    </h2>
+                    <span class="badge badge-secondary">{{ current_room.type }}</span>
+                </div>
+                <div style="display: flex; gap: var(--spacing-sm);">
+                    <a href="/rag/{{ current_room.id }}" class="btn btn-secondary btn-sm" title="Knowledge Base">
+                        <span>📚</span>
+                    </a>
+                    {% if is_admin %}
+                    <a href="/dashboard?room_id={{ current_room.id }}&settings=true" class="btn btn-secondary btn-sm" title="Settings">
+                        <span>⚙️</span>
+                    </a>
                     {% endif %}
-                </h2>
-                <span class="badge badge-secondary">{{ current_room.type }}</span>
+                </div>
             </div>
 
-            <div class="card" style="flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column-reverse;">
-                {% if history %}
-                    <div style="display: flex; flex-direction: column; gap: 1rem;">
-                        {% for role, content, name, prompt in history %}
-                            <div class="message {% if role == 'user' %}message-user{% else %}message-assistant{% endif %}">
-                                <div class="message-meta">
-                                    <span style="font-weight: 600;">{{ name }}</span>
-                                    <span style="font-size: 0.8em; opacity: 0.7; margin-left: 0.5rem;">{{ role|title }}</span>
+            <!-- Messages Container -->
+            <div class="card" style="flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; padding: var(--spacing-md);">
+                <div class="messages-wrapper" style="display: flex; flex-direction: column; gap: 1rem; flex-grow: 1;">
+                    <!-- Existing Messages -->
+                    <div id="messages-container" style="display: flex; flex-direction: column; gap: 1rem;">
+                        {% if history %}
+                            {% for role, content, name, prompt in history %}
+                                <div class="message {% if role == 'user' %}message-user{% else %}message-assistant{% endif %}">
+                                    <div class="message-meta">
+                                        <span style="font-weight: 600;">{{ name }}</span>
+                                        <span style="font-size: 0.8em; opacity: 0.7; margin-left: 0.5rem;">{{ role|title }}</span>
+                                    </div>
+                                    <div class="message-content">{{ content }}</div>
+                                    {% if role == 'assistant' and prompt %}
+                                        <details style="margin-top: 0.5rem; font-size: 0.8rem; background: rgba(0,0,0,0.05); padding: 0.5rem; border-radius: 0.25rem;">
+                                            <summary style="cursor: pointer; opacity: 0.7; user-select: none;">🔍 System Prompt</summary>
+                                            <div style="margin-top: 0.5rem; white-space: pre-wrap; font-family: monospace;">{{ prompt }}</div>
+                                        </details>
+                                    {% endif %}
                                 </div>
-                                {{ content }}
-                                {% if role == 'assistant' and prompt %}
-                                    <details style="margin-top: 0.5rem; font-size: 0.8rem; background: rgba(0,0,0,0.05); padding: 0.5rem; border-radius: 0.25rem;">
-                                        <summary style="cursor: pointer; opacity: 0.7; user-select: none;">🔍 System Prompt</summary>
-                                        <div style="margin-top: 0.5rem; white-space: pre-wrap; font-family: monospace;">{{ prompt }}</div>
-                                    </details>
-                                {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            <div class="empty-state" style="text-align: center; padding: 3rem 1rem; color: var(--text-muted);">
+                                <div style="font-size: 3rem; margin-bottom: var(--spacing-md); opacity: 0.5;">💬</div>
+                                <h3 style="font-size: 1.25rem; margin-bottom: var(--spacing-sm);">Start a conversation</h3>
+                                <p style="font-size: 0.9rem;">Send a message to begin chatting with the AI assistant.</p>
                             </div>
-                        {% endfor %}
+                        {% endif %}
                     </div>
-                {% else %}
-                    <div style="text-align: center; color: var(--text-muted); margin-top: 20%;">
-                        <p>No messages yet.</p>
+
+                    <!-- Typing Indicator Container -->
+                    {{ typing_indicator_container() }}
+
+                    <!-- Streaming Message Container (hidden by default) -->
+                    <div id="streaming-message" class="message message-assistant streaming-message" style="display: none;">
+                        <div class="message-meta">
+                            <span style="font-weight: 600;">AI Assistant</span>
+                            <span style="font-size: 0.8em; opacity: 0.7; margin-left: 0.5rem;">Streaming</span>
+                        </div>
+                        <div class="message-content" id="streaming-content"></div>
+                        <div class="streaming-meta" style="margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-muted);">
+                            <span class="streaming-time"></span>
+                            <span class="token-count" style="margin-left: 0.5rem;"></span>
+                        </div>
                     </div>
-                {% endif %}
+                </div>
+            </div>
+
+            <!-- Chat Input Area -->
+            <div class="chat-input-area" style="margin-top: var(--spacing-md); display: flex; gap: var(--spacing-sm);">
+                <textarea
+                    id="chat-input"
+                    class="chat-input-field"
+                    placeholder="Type your message here... (Press Enter to send, Shift+Enter for new line)"
+                    rows="2"
+                    style="flex-grow: 1; resize: none; padding: var(--spacing-sm); border: 1px solid var(--border-color); border-radius: var(--radius-md); font-family: inherit; font-size: 0.95rem;"
+                ></textarea>
+                <button
+                    id="send-button"
+                    class="btn btn-primary"
+                    style="align-self: flex-end; height: 48px; padding: 0 var(--spacing-lg);"
+                >
+                    Send
+                </button>
             </div>
         {% else %}
+            <!-- No Room Selected -->
             <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; color: var(--text-muted);">
-                <p>Select a conversation to view history.</p>
+                <div style="text-align: center;">
+                    <div style="font-size: 3rem; margin-bottom: var(--spacing-md); opacity: 0.5;">💬</div>
+                    <p style="font-size: 1.125rem;">Select a conversation to start chatting</p>
+                    {% if not chat_rooms %}
+                    <a href="/personas" class="btn btn-primary" style="margin-top: var(--spacing-md);">Configure Personas</a>
+                    {% endif %}
+                </div>
             </div>
         {% endif %}
     </section>
 </div>
 
-<style>
-    /* Inline styles for quick prototyping, move to style.css in production */
-    .message {
-        padding: 1rem;
-        border-radius: 0.5rem;
-        max-width: 80%;
-        line-height: 1.5;
+<!-- Streaming Chat Application -->
+<script type="module">
+(function() {
+    'use strict';
+
+    // Configuration
+    const CONFIG = {
+        chatRoomId: {{ current_room.id if current_room else 'null' }},
+        apiEndpoint: '/api/streaming/chat'
+    };
+
+    // Global state
+    let streamingClient = null;
+    let isStreaming = false;
+
+    // DOM Elements
+    const elements = {
+        chatInput: document.getElementById('chat-input'),
+        sendButton: document.getElementById('send-button'),
+        messagesContainer: document.getElementById('messages-container'),
+        streamingMessage: document.getElementById('streaming-message'),
+        streamingContent: document.getElementById('streaming-content'),
+        typingIndicatorContainer: document.getElementById('typing-indicator-container')
+    };
+
+    // Conversation Search (existing functionality)
+    const searchInput = document.getElementById('conversation-search');
+    const conversationList = document.getElementById('conversation-list');
+    const conversationItems = conversationList?.querySelectorAll('.conversation-item');
+
+    if (searchInput && conversationItems) {
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            let visibleCount = 0;
+
+            conversationItems.forEach(item => {
+                const name = item.dataset.name?.toLowerCase() || '';
+                const username = item.dataset.username?.toLowerCase() || '';
+                const matches = name.includes(searchTerm) || username.includes(searchTerm);
+
+                if (matches) {
+                    item.style.display = '';
+                    visibleCount++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+
+            let emptyState = conversationList.querySelector('.search-empty-state');
+            if (visibleCount === 0 && searchTerm) {
+                if (!emptyState) {
+                    emptyState = document.createElement('div');
+                    emptyState.className = 'search-empty-state';
+                    emptyState.style.cssText = 'text-align: center; padding: var(--spacing-lg); color: var(--text-muted);';
+                    emptyState.innerHTML = `
+                        <div style="font-size: 2rem; margin-bottom: var(--spacing-sm);">🔍</div>
+                        <p>No conversations found matching "${searchTerm}"</p>
+                    `;
+                    conversationList.appendChild(emptyState);
+                } else {
+                    emptyState.querySelector('p').textContent = `No conversations found matching "${searchTerm}"`;
+                    emptyState.style.display = '';
+                }
+            } else if (emptyState) {
+                emptyState.style.display = 'none';
+            }
+        });
     }
+
+    // Message content formatting (existing functionality)
+    function formatMessageContent(content) {
+        let html = content;
+
+        // Escape HTML first
+        html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+        // Basic markdown-like formatting
+        html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+        html = html.replace(/`([^`]+)`/g, '<code style="background: rgba(0,0,0,0.1); padding: 2px 6px; border-radius: 4px;">$1</code>');
+        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        html = html.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: var(--primary-color);">$1</a>');
+
+        return html;
+    }
+
+    // Format existing messages
+    document.querySelectorAll('.message-content').forEach(content => {
+        content.innerHTML = formatMessageContent(content.textContent);
+    });
+
+    // Initialize streaming if room is selected
+    if (CONFIG.chatRoomId && elements.chatInput && elements.sendButton) {
+        initializeStreaming();
+    }
+
+    async function initializeStreaming() {
+        try {
+            // Load streaming modules
+            const [
+                { ChatStreamingClient },
+                { TypingIndicator },
+                { StreamingMessageHandler },
+                { ReconnectionManager },
+                { AutoScrollManager },
+                { MetadataDisplay },
+                { StreamingErrorHandler }
+            ] = await Promise.all([
+                import('/static/js/chat-streaming-client.js'),
+                import('/static/js/typing-indicator.js'),
+                import('/static/js/streaming-message-handler.js'),
+                import('/static/js/reconnection-manager.js'),
+                import('/static/js/auto-scroll-manager.js'),
+                import('/static/js/metadata-display.js'),
+                import('/static/js/streaming-error-handler.js')
+            ]);
+
+            // Initialize components
+            const typingIndicator = new TypingIndicator(elements.typingIndicatorContainer);
+            const messageHandler = new StreamingMessageHandler();
+            const reconnectionManager = new ReconnectionManager();
+            const autoScrollManager = new AutoScrollManager(elements.messagesContainer.parentElement);
+            const metadataDisplay = new MetadataDisplay();
+            const errorHandler = new StreamingErrorHandler();
+
+            // Initialize streaming client
+            streamingClient = new ChatStreamingClient(CONFIG.chatRoomId, {
+                reconnectionManager,
+                typingIndicator,
+                messageHandler,
+                autoScrollManager,
+                metadataDisplay,
+                errorHandler
+            });
+
+            // Setup event handlers
+            streamingClient.onTyping = () => {
+                elements.streamingMessage.style.display = 'none';
+            };
+
+            streamingClient.onMessage = (chunk) => {
+                elements.streamingMessage.style.display = 'block';
+                const currentContent = elements.streamingContent.innerHTML;
+                elements.streamingContent.innerHTML = currentContent + formatMessageContent(chunk);
+            };
+
+            streamingClient.onComplete = (metadata) => {
+                isStreaming = false;
+                elements.sendButton.disabled = false;
+                elements.chatInput.disabled = false;
+
+                // Add metadata
+                const metaTime = elements.streamingMessage.querySelector('.streaming-time');
+                const metaTokens = elements.streamingMessage.querySelector('.token-count');
+                if (metaTime) metaTime.textContent = new Date().toLocaleTimeString();
+                if (metaTokens) metaTokens.textContent = `${metadata.total_tokens || 0} tokens`;
+
+                // Move to messages container
+                elements.streamingMessage.classList.remove('streaming-message');
+                elements.streamingMessage.style.display = 'block';
+                elements.messagesContainer.appendChild(elements.streamingMessage);
+
+                // Reset streaming message
+                elements.streamingMessage = document.createElement('div');
+                elements.streamingMessage.className = 'message message-assistant streaming-message';
+                elements.streamingMessage.style.display = 'none';
+                elements.streamingMessage.innerHTML = `
+                    <div class="message-meta">
+                        <span style="font-weight: 600;">AI Assistant</span>
+                        <span style="font-size: 0.8em; opacity: 0.7; margin-left: 0.5rem;">Streaming</span>
+                    </div>
+                    <div class="message-content"></div>
+                    <div class="streaming-meta" style="margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-muted);">
+                        <span class="streaming-time"></span>
+                        <span class="token-count" style="margin-left: 0.5rem;"></span>
+                    </div>
+                `;
+                elements.streamingContent = elements.streamingMessage.querySelector('.message-content');
+                elements.messagesWrapper = document.querySelector('.messages-wrapper');
+                if (elements.messagesWrapper) {
+                    elements.messagesWrapper.appendChild(elements.streamingMessage);
+                }
+
+                // Scroll to bottom
+                autoScrollManager.scrollToBottom();
+            };
+
+            streamingClient.onError = (error) => {
+                isStreaming = false;
+                elements.sendButton.disabled = false;
+                elements.chatInput.disabled = false;
+
+                if (window.Toast) {
+                    window.Toast.error(`Streaming error: ${error.message || 'Unknown error'}`);
+                }
+            };
+
+            // Connect to streaming endpoint
+            await streamingClient.connect();
+
+            console.log('Streaming chat initialized for room:', CONFIG.chatRoomId);
+
+        } catch (error) {
+            console.error('Failed to initialize streaming:', error);
+            if (window.Toast) {
+                window.Toast.error('Failed to initialize real-time chat. Please refresh the page.');
+            }
+        }
+    }
+
+    // Send message handler
+    async function sendMessage() {
+        if (!elements.chatInput || isStreaming) return;
+
+        const message = elements.chatInput.value.trim();
+        if (!message) return;
+
+        // Add user message to UI
+        const userMessage = document.createElement('div');
+        userMessage.className = 'message message-user';
+        userMessage.innerHTML = `
+            <div class="message-meta">
+                <span style="font-weight: 600;">You</span>
+                <span style="font-size: 0.8em; opacity: 0.7; margin-left: 0.5rem;">User</span>
+            </div>
+            <div class="message-content">${formatMessageContent(message)}</div>
+        `;
+        elements.messagesContainer.appendChild(userMessage);
+
+        // Clear input
+        elements.chatInput.value = '';
+
+        // Scroll to bottom
+        const card = elements.messagesContainer.closest('.card');
+        if (card) {
+            card.scrollTop = card.scrollHeight;
+        }
+
+        // Send via streaming
+        isStreaming = true;
+        elements.sendButton.disabled = true;
+        elements.chatInput.disabled = true;
+
+        try {
+            if (streamingClient) {
+                await streamingClient.sendMessage(message);
+            } else {
+                // Fallback to regular API
+                const response = await fetch(CONFIG.apiEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        chat_room_id: CONFIG.chatRoomId
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to send message');
+                }
+
+                // Handle streaming response
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value);
+                    // Handle SSE events
+                    const lines = chunk.split('\n');
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = JSON.parse(line.slice(6));
+                            if (data.chunk && streamingClient) {
+                                streamingClient.onMessage(data.chunk);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error sending message:', error);
+            isStreaming = false;
+            elements.sendButton.disabled = false;
+            elements.chatInput.disabled = false;
+
+            if (window.Toast) {
+                window.Toast.error('Failed to send message. Please try again.');
+            }
+        }
+    }
+
+    // Event listeners for send button and input
+    if (elements.sendButton) {
+        elements.sendButton.addEventListener('click', sendMessage);
+    }
+
+    if (elements.chatInput) {
+        elements.chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+    }
+
+    // Auto-scroll to bottom on load
+    const card = elements.messagesContainer?.closest('.card');
+    if (card) {
+        card.scrollTop = card.scrollHeight;
+    }
+
+    // Show toast notification when messages are loaded
+    if (window.Toast && elements.messagesContainer && elements.messagesContainer.children.length > 0) {
+        const messageCount = elements.messagesContainer.children.length;
+        if (messageCount > 0) {
+            window.Toast.info(`Loaded ${messageCount} messages`, { duration: 3000 });
+        }
+    }
+})();
+</script>
+
+<style>
+    .chat-container {
+        position: relative;
+    }
+
+    .message {
+        padding: var(--spacing-md);
+        border-radius: var(--radius-lg);
+        max-width: 85%;
+    }
+
     .message-user {
         align-self: flex-end;
-        background-color: var(--primary-color);
-        color: white;
         margin-left: auto;
+        background: var(--primary-color);
+        color: white;
     }
+
     .message-assistant {
         align-self: flex-start;
-        background-color: var(--bg-secondary);
-        color: var(--text-primary);
-        margin-right: auto;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
     }
+
     .message-meta {
-        font-size: 0.75rem;
-        margin-bottom: 0.25rem;
-        opacity: 0.8;
+        display: flex;
+        align-items: center;
+        margin-bottom: var(--spacing-xs);
+        font-size: 0.875rem;
     }
-    
-    .conversation-item {
-        padding: 1rem;
-        border: 1px solid transparent; /* Default border */
-        background-color: var(--card-bg);
-        transition: all 0.2s ease;
+
+    .message-content {
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        line-height: 1.5;
     }
-    
-    .conversation-item.active {
+
+    .message-content pre {
+        background: rgba(0, 0, 0, 0.05);
+        padding: var(--spacing-sm);
+        border-radius: var(--radius-sm);
+        overflow-x: auto;
+        margin: var(--spacing-sm) 0;
+    }
+
+    .message-content pre code {
+        font-family: 'Monaco', 'Menlo', monospace;
+        font-size: 0.9em;
+    }
+
+    .message-content code {
+        font-family: 'Monaco', 'Menlo', monospace;
+        font-size: 0.9em;
+    }
+
+    .message-content a {
+        color: inherit;
+        text-decoration: underline;
+    }
+
+    .message-user .message-content a {
+        color: #fff;
+    }
+
+    .streaming-message {
+        animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .chat-input-field {
+        transition: border-color var(--transition-fast);
+    }
+
+    .chat-input-field:focus {
+        outline: none;
         border-color: var(--primary-color);
-        background-color: var(--bg-secondary);
+        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+    }
+
+    .chat-input-field:disabled {
+        background: var(--bg-secondary);
+        cursor: not-allowed;
+    }
+
+    #send-button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .chat-container {
+            flex-direction: column;
+            height: auto;
+        }
+
+        .chat-sidebar {
+            width: 100%;
+            border-right: none;
+            border-bottom: 1px solid var(--border-color);
+            padding-right: 0;
+            padding-bottom: var(--spacing-md);
+            max-height: 200px;
+        }
+
+        .chat-main {
+            height: calc(100vh - 420px);
+            min-height: 400px;
+        }
+
+        .message {
+            max-width: 95%;
+        }
+    }
+
+    /* Search empty state */
+    .search-empty-state {
+        animation: fadeIn var(--transition-base);
+    }
+
+    /* Smooth transitions */
+    .conversation-item {
+        transition: all var(--transition-base);
+    }
+
+    .conversation-item[style*="display: none"] {
+        animation: fadeOut 0.2s ease;
+    }
+
+    @keyframes fadeOut {
+        from {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        to {
+            opacity: 0;
+            transform: translateX(-10px);
+        }
     }
 </style>
 {% endblock %}
