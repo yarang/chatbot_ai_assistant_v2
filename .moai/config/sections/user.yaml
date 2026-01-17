@@ -1,8 +1,5 @@
-# User Configuration
-# Format: YAML
-#
-# This file defines user-specific settings for personalization.
-
 name: Developer
-email: ""
-timezone: "Asia/Seoul"
+email: ''
+timezone: Asia/Seoul
+user:
+  name: yarang

@@ -1,15 +1,19 @@
-# Project Configuration
-# Format: YAML
-#
-# This file defines project-specific metadata and settings.
-
-name: "Chatbot AI Assistant V2"
-type: "web_application"
-version: "0.1.0"
-description: "LangGraph-based multi-agent AI chatbot with Telegram and web interface"
+name: Chatbot AI Assistant V2
+type: web_application
+version: 0.1.0
+description: LangGraph-based multi-agent AI chatbot with Telegram and web interface
 domains:
-  - backend
-  - ai
-  - database
+- backend
+- ai
+- database
 team_size: solo
 development_mode: active
+project:
+  name: chatbot_ai_assistant_v2
+  description: ''
+  type: ''
+  locale: '{{LOCALE}}'
+  created_at: '2026-01-15T02:09:56.578262Z'
+  initialized: 'true'
+github:
+  profile_name: yarang

@@ -178,3 +178,19 @@ env/
 # Old patterns caused false positives for: keyboard-config, hotkey, monkey-patch, etc.
 !.moai/memory/**
 Groq free api key
+# Build Artifacts & Distribution
+# Build Tools & Frameworks
+# Private keys (specific patterns to avoid false positives)
+# ===========================================
+# Deployment & CI/CD
+dist-ssr/
+# Claude Code Configuration
+.turbo/
+# Python Cache & Bytecode
+# Updated: 2026-01-10
+.nuxt/
+# Secrets and Credentials (CRITICAL)
+# Skill-specific credentials
+# Environment files
+# Version: 0.33.0
+# Credential patterns in environment files
