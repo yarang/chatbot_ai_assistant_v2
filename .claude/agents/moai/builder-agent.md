@@ -1,10 +1,26 @@
 ---
 name: builder-agent
-description: Use PROACTIVELY when creating new sub-agents or generating agent blueprints from requirements. Specialized in Claude Code official sub-agent standards and Chapter 04 best practices.
-tools: Read, Write, Edit, Grep, Glob, WebFetch, WebSearch, Bash, TodoWrite, Task, Skill, mcpcontext7resolve-library-id, mcpcontext7get-library-docs
+description: |
+  Agent creation specialist. Use PROACTIVELY for creating sub-agents, agent blueprints, and custom agent definitions.
+  MUST INVOKE when ANY of these keywords appear in user request:
+  EN: create agent, new agent, agent blueprint, sub-agent, agent definition, custom agent
+  KO: 에이전트생성, 새에이전트, 에이전트블루프린트, 서브에이전트, 에이전트정의, 커스텀에이전트
+  JA: エージェント作成, 新エージェント, エージェントブループリント, サブエージェント
+  ZH: 创建代理, 新代理, 代理蓝图, 子代理, 代理定义
+tools: Read, Write, Edit, Grep, Glob, WebFetch, WebSearch, Bash, TodoWrite, Task, Skill, mcp__context7__resolve-library-id, mcp__context7__get-library-docs
 model: inherit
 permissionMode: bypassPermissions
 skills: moai-foundation-claude, moai-workflow-project
+hooks:
+  PostToolUse:
+    - matcher: "Write|Edit"
+      hooks:
+        - type: command
+          command: "uv run \"{{PROJECT_DIR}}\"/.claude/hooks/moai/post_tool__code_formatter.py"
+          timeout: 30
+        - type: command
+          command: "uv run \"{{PROJECT_DIR}}\"/.claude/hooks/moai/post_tool__linter.py"
+          timeout: 30
 ---
 
 # Agent Factory
@@ -30,7 +46,7 @@ delegates_to: ["mcp-context7", "core-quality"] # Research and validation delegat
 requires_approval: true # User approval before agent finalization
 
 performance:
-avg_execution_time_seconds: 960 # ~16 minutes per complex agent (20% improvement)
+avg_execution_time_seconds: 960
 context_heavy: true # Loads templates, skills database, patterns
 mcp_integration: ["context7"] # MCP tools for documentation research
 optimization_version: "v2.0" # Optimized skill configuration

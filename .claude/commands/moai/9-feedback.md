@@ -1,24 +1,24 @@
 ---
-name: moai:9-feedback
 description: "Submit feedback or report issues"
 argument-hint: "[issue|suggestion|question]"
-allowed-tools: Read, Write, Edit, Grep, Glob, WebFetch, WebSearch, Bash, TodoWrite, AskUserQuestion, Task, Skill
-model: haiku
+type: local
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob, TodoWrite, AskUserQuestion
+model: sonnet
 ---
 
-##  Pre-execution Context
+## Pre-execution Context
 
 !git status --porcelain
 !git branch --show-current
 !git log --oneline -1
 
-##  Essential Files
+## Essential Files
 
 @.moai/config/config.yaml
 
 ---
 
-#  MoAI-ADK Step 9: Feedback Loop
+# MoAI-ADK Step 9: Feedback Loop
 
 > Architecture: Commands → Agents → Skills. This command orchestrates ONLY through `Task()` tool.
 > Delegation Model: Feedback collection delegated to `manager-quality` agent.
@@ -27,7 +27,7 @@ Workflow Integration: This command implements the feedback loop of the MoAI work
 
 ---
 
-##  Command Purpose
+## Command Purpose
 
 Collect user feedback, bug reports, or feature suggestions and create GitHub issues automatically.
 
@@ -35,20 +35,18 @@ Run on: `$ARGUMENTS` (Feedback type)
 
 ---
 
-##  Execution Philosophy
+## Execution Philosophy
 
-`/moai:9-feedback` performs feedback collection through agent delegation:
+/moai:9-feedback performs feedback collection through agent delegation:
 
-```
-User Command: /moai:9-feedback [type]
-    ↓
-Phase 1: Task(subagent_type="manager-quality")
-    → Analyze feedback type
-    → Collect details via AskUserQuestion
-    → Create GitHub Issue via Skill
-    ↓
-Output: Issue created with link
-```
+Execution Flow:
+
+- User Command: /moai:9-feedback [type]
+- Phase 1: Task with subagent_type "manager-quality"
+  - Analyze feedback type
+  - Collect details via AskUserQuestion
+  - Create GitHub Issue via Skill
+- Output: Issue created with link
 
 ### Key Principle: Full Delegation Pattern
 
@@ -69,11 +67,11 @@ This command exclusively uses these tools:
 
 ---
 
-##  Associated Agents & Skills
+## Associated Agents and Skills
 
-| Agent/Skill     | Purpose                                       |
-| --------------- | --------------------------------------------- |
-| manager-quality | Feedback collection and GitHub issue creation |
+Associated Agents for Feedback Collection:
+
+- manager-quality: Feedback collection and GitHub issue creation
 
 ---
 
@@ -86,12 +84,14 @@ This command uses agent execution patterns defined in CLAUDE.md (lines 96-120).
 Command implements simple sequential execution through 2 phases:
 
 Phase Flow:
+
 - Phase 1: Feedback Collection (manager-quality analyzes type and collects details)
 - Phase 2: GitHub Issue Creation (manager-quality creates issue with collected information)
 
 Each phase receives outputs from previous phase as context.
 
 WHY: Sequential execution ensures complete feedback capture before submission
+
 - Phase 2 requires validated feedback details from Phase 1
 - Issue creation requires all user input to be collected
 
@@ -102,6 +102,7 @@ IMPACT: Skipping Phase 1 would create incomplete GitHub issues
 Not applicable - simple linear workflow
 
 WHY: Feedback workflow has minimal complexity
+
 - Only one agent (manager-quality) handles entire process
 - Single feedback submission at a time
 - No independent operations to parallelize
@@ -113,6 +114,7 @@ IMPACT: Parallel execution unnecessary for single-agent linear workflow
 Not applicable - command completes in single execution
 
 WHY: Feedback submission is fast atomic operation
+
 - Typical execution completes in under 30 seconds
 - GitHub API calls are atomic and fast
 - No long-running processes requiring checkpoints
@@ -125,7 +127,7 @@ Refer to CLAUDE.md "Agent Chaining Patterns" (lines 96-120) for complete pattern
 
 ---
 
-##  Execution Process
+## Execution Process
 
 ### Step 1: Delegate to Quality Gate Agent
 
@@ -204,7 +206,7 @@ Language and Accessibility:
 
 ---
 
-##  Summary: Execution Verification Checklist
+## Summary: Execution Verification Checklist
 
 Before considering command execution complete, verify all requirements:
 
@@ -226,14 +228,27 @@ Before considering command execution complete, verify all requirements:
 
 ---
 
-##  Quick Reference
+## Quick Reference
 
-| Scenario         | Entry Point                   | Expected Outcome                            |
-| ---------------- | ----------------------------- | ------------------------------------------- |
-| Report bug       | `/moai:9-feedback issue`      | GitHub issue created with bug label         |
-| Request feature  | `/moai:9-feedback suggestion` | GitHub issue created with enhancement label |
-| Ask question     | `/moai:9-feedback question`   | GitHub issue created with question label    |
-| General feedback | `/moai:9-feedback`            | Interactive feedback collection             |
+Scenario: Report bug
+
+- Entry Point: /moai:9-feedback issue
+- Expected Outcome: GitHub issue created with bug label
+
+Scenario: Request feature
+
+- Entry Point: /moai:9-feedback suggestion
+- Expected Outcome: GitHub issue created with enhancement label
+
+Scenario: Ask question
+
+- Entry Point: /moai:9-feedback question
+- Expected Outcome: GitHub issue created with question label
+
+Scenario: General feedback
+
+- Entry Point: /moai:9-feedback
+- Expected Outcome: Interactive feedback collection
 
 Associated Agent:
 
@@ -290,6 +305,7 @@ WHY: Guided choices help users continue productive workflows
 IMPACT: Abrupt completion requires user to determine next actions
 
 Next Step Options:
+
 - Continue Development: Return to current development workflow
 - Submit Additional Feedback: Report another issue or suggestion
 - View Issue: Open created GitHub issue in browser
@@ -306,7 +322,7 @@ Requirements:
 
 ---
 
-##  EXECUTION DIRECTIVE
+## EXECUTION DIRECTIVE
 
 You must NOW execute the command following the "Execution Process" described above.
 

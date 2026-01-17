@@ -1,10 +1,23 @@
 ---
 name: expert-security
-description: Use for security analysis, vulnerability assessment, secure code reviews, and security best practices. Specialized in OWASP Top 10, security code review, and threat modeling.
+description: |
+  Security analysis specialist. Use PROACTIVELY for OWASP, vulnerability assessment, XSS, CSRF, and secure code review.
+  MUST INVOKE when ANY of these keywords appear in user request:
+  EN: security, vulnerability, OWASP, injection, XSS, CSRF, penetration, audit, threat
+  KO: 보안, 취약점, OWASP, 인젝션, XSS, CSRF, 침투, 감사, 위협
+  JA: セキュリティ, 脆弱性, OWASP, インジェクション, XSS, CSRF, ペネトレーション, 監査
+  ZH: 安全, 漏洞, OWASP, 注入, XSS, CSRF, 渗透, 审计
 model: inherit
 permissionMode: default
-skills: moai-foundation-claude, moai-foundation-quality, moai-workflow-testing, moai-platform-auth0
-tools: Read, Write, Edit, Grep, Glob, WebFetch, WebSearch, Bash, TodoWrite, Task, Skill, mcpcontext7resolve-library-id, mcpcontext7get-library-docs
+skills: moai-foundation-claude, moai-foundation-quality, moai-workflow-testing, moai-platform-auth0, moai-tool-ast-grep
+tools: Read, Write, Edit, Grep, Glob, WebFetch, WebSearch, Bash, TodoWrite, Task, Skill, mcp__context7__resolve-library-id, mcp__context7__get-library-docs
+hooks:
+  PreToolUse:
+    - matcher: "Write|Edit"
+      hooks:
+        - type: command
+          command: "uv run \"{{PROJECT_DIR}}\"/.claude/hooks/moai/pre_tool__security_guard.py"
+          timeout: 30
 ---
 
 # Security Expert 

@@ -282,10 +282,10 @@ merge_result = optimizer.smart_merge(
 ```toml
 # templates/fastapi-backend/pyproject.toml.template
 [project]
-name = "chatbot_ai_assistant_v2_dev"
+name = "{{PROJECT_NAME}}"
 version = "0.1.0"
 requires-python = ">={{PYTHON_VERSION}}"
-authors = [{ name = "@user" }]
+authors = [{ name = "{{AUTHOR}}" }]
 
 [tool.uv]
 dev-dependencies = [

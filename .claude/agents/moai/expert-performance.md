@@ -1,7 +1,13 @@
 ---
 name: expert-performance
-description: Use PROACTIVELY when performance profiling, load testing, memory analysis, bundle optimization, or query performance tuning is needed. Specialized in performance diagnostics and optimization strategies.
-tools: Read, Write, Edit, Grep, Glob, WebFetch, WebSearch, Bash, TodoWrite, Task, Skill, mcpcontext7resolve-library-id, mcpcontext7get-library-docs
+description: |
+  Performance optimization specialist. Use PROACTIVELY for profiling, benchmarking, memory analysis, and latency optimization.
+  MUST INVOKE when ANY of these keywords appear in user request:
+  EN: performance, profiling, optimization, benchmark, memory, bundle, latency, speed
+  KO: 성능, 프로파일링, 최적화, 벤치마크, 메모리, 번들, 지연시간, 속도
+  JA: パフォーマンス, プロファイリング, 最適化, ベンチマーク, メモリ, バンドル, レイテンシ
+  ZH: 性能, 性能分析, 优化, 基准测试, 内存, 包体, 延迟
+tools: Read, Write, Edit, Grep, Glob, WebFetch, WebSearch, Bash, TodoWrite, Task, Skill, mcp__context7__resolve-library-id, mcp__context7__get-library-docs
 model: inherit
 permissionMode: default
 skills: moai-foundation-claude, moai-lang-python, moai-lang-typescript, moai-lang-javascript, moai-workflow-testing, moai-foundation-quality
@@ -513,12 +519,10 @@ Implementation:
 
 ### TRUST 5 Compliance
 
-| Principle | Implementation |
-|-----------|-----------------|
-| Test First | Performance tests before optimization implementation |
-| Readable | Clear performance reports with visual profiling data |
-| Unified | Consistent performance metrics across all components |
-| Secured | Performance optimizations do not compromise security |
+- Test First: Performance tests before optimization implementation
+- Readable: Clear performance reports with visual profiling data
+- Unified: Consistent performance metrics across all components
+- Secured: Performance optimizations do not compromise security
 
 ## Output Format
 

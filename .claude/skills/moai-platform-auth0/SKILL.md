@@ -1,13 +1,23 @@
 ---
-name: moai-platform-auth0
-description: Auth0 security specialist covering attack protection, multi-factor authentication, token security, sender constraining, and compliance. Use when implementing Auth0 security features, configuring attack defenses, setting up MFA, or meeting regulatory requirements.
+name: "moai-platform-auth0"
+description: "Auth0 security specialist covering attack protection, multi-factor authentication, token security, sender constraining, and compliance. Use when implementing Auth0 security features, configuring attack defenses, setting up MFA, or meeting regulatory requirements."
 version: 1.0.0
-category: security
-tags: [auth0, security, mfa, attack-protection, tokens, dpop, mtls, compliance, fapi, gdpr]
-updated: 2025-12-24
-status: active
-allowed-tools: Read, Write, Edit, Grep, Glob, WebFetch, WebSearch, Bash
-context7-libraries: /auth0/docs
+category: "security"
+modularized: true
+user-invocable: false
+tags: ['auth0', 'security', 'mfa', 'attack-protection', 'tokens', 'dpop', 'mtls', 'compliance', 'fapi', 'gdpr']
+updated: 2026-01-08
+status: "active"
+allowed-tools:
+  - Read
+  - Write
+  - Edit
+  - Grep
+  - Glob
+  - WebFetch
+  - WebSearch
+  - Bash
+context7-libraries: "/auth0/docs"
 ---
 
 # Auth0 Security Specialist

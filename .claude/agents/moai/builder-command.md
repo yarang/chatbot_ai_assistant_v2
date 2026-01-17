@@ -1,10 +1,26 @@
 ---
 name: builder-command
-description: Use PROACTIVELY when creating or optimizing custom slash commands. Maximizes reuse through asset discovery and match scoring. Specialized in command creation, parameter validation, and workflow automation.
-tools: Read, Write, Edit, Grep, Glob, WebFetch, WebSearch, Bash, TodoWrite, Task, Skill, mcpcontext7resolve-library-id, mcpcontext7get-library-docs
+description: |
+  Slash command creation specialist. Use PROACTIVELY for custom commands, command optimization, and workflow automation.
+  MUST INVOKE when ANY of these keywords appear in user request:
+  EN: create command, slash command, custom command, command optimization, new command
+  KO: 커맨드생성, 슬래시커맨드, 커스텀커맨드, 커맨드최적화, 새커맨드
+  JA: コマンド作成, スラッシュコマンド, カスタムコマンド, コマンド最適化
+  ZH: 创建命令, 斜杠命令, 自定义命令, 命令优化
+tools: Read, Write, Edit, Grep, Glob, WebFetch, WebSearch, Bash, TodoWrite, Task, Skill, mcp__context7__resolve-library-id, mcp__context7__get-library-docs
 model: inherit
 permissionMode: bypassPermissions
 skills: moai-foundation-claude, moai-workflow-project, moai-workflow-templates
+hooks:
+  PostToolUse:
+    - matcher: "Write|Edit"
+      hooks:
+        - type: command
+          command: "uv run \"{{PROJECT_DIR}}\"/.claude/hooks/moai/post_tool__code_formatter.py"
+          timeout: 30
+        - type: command
+          command: "uv run \"{{PROJECT_DIR}}\"/.claude/hooks/moai/post_tool__linter.py"
+          timeout: 30
 ---
 
 # Command Factory Orchestration Metadata (v1.0)
@@ -65,7 +81,7 @@ delegates_to: [builder-agent, builder-skill, manager-quality, Plan]
 requires_approval: true
 
 performance:
-avg_execution_time_seconds: 900 # ~15 minutes for full workflow
+avg_execution_time_seconds: 900
 context_heavy: true
 mcp_integration: [context7]
 optimization_version: "v1.0"
@@ -316,8 +332,8 @@ Goal: Gather latest documentation and best practices
 Fetch official Claude Code documentation for custom slash commands:
 
 Use Context7 MCP integration:
-- First resolve library ID for "claude-code" using mcpcontext7resolve-library-id
-- Then fetch custom slash commands documentation using mcpcontext7get-library-docs with topic "custom-slash-commands" and mode "code"
+- First resolve library ID for "claude-code" using mcp__context7__resolve-library-id
+- Then fetch custom slash commands documentation using mcp__context7__get-library-docs with topic "custom-slash-commands" and mode "code"
 - Store latest command creation standards for reference
 
 ### Step 2.2: WebSearch for Best Practices
@@ -503,21 +519,35 @@ Execute template selection based on the determined reuse strategy:
 
 ### Step 5.2: Generate Frontmatter
 
+IMPORTANT: Command name is automatically derived from file path structure:
+- `.claude/commands/{namespace}/{command-name}.md` → `/{namespace}:{command-name}`
+- Example: `.claude/commands/moai/fix.md` → `/moai:fix`
+
+DO NOT include a `name` field in frontmatter - it is not officially supported.
+
 ```yaml
 ---
-name: { command_name } # kebab-case
 description: "{command_description}"
 argument-hint: "{argument_format}"
+type: {workflow|utility|local}
 allowed-tools:
   - Task
   - AskUserQuestion
   - TodoWrite # Optional, based on complexity
-model: { model_choice } # haiku or sonnet based on complexity
-skills:
-  - { skill_1 }
-  - { skill_2 }
+model: { model_choice } # haiku, sonnet, or inherit
 ---
 ```
+
+Supported frontmatter fields (official Claude Code documentation):
+- `description` - Command description shown in /help
+- `argument-hint` - Argument syntax hint for autocomplete
+- `allowed-tools` - Tools this command can invoke
+- `model` - Override default model for this command
+- `hooks` - Hook definitions for command execution
+- `disable-model-invocation` - Prevent Skill tool invocation
+
+MoAI-ADK extension field:
+- `type` - Command classification (workflow, utility, local)
 
 ### Step 5.3: Generate Required Sections
 
@@ -582,10 +612,9 @@ Section 4: Associated Agents & Skills
 ```markdown
 ## Associated Agents & Skills
 
-| Agent/Skill | Purpose |
-| ----------- | ------- |
+Associated agents and skills for this command:
 
-{agent_skill_table_rows}
+{agent_skill_list}
 ```
 
 Section 5: Agent Invocation Patterns (NEW)
@@ -720,6 +749,24 @@ Output: {expected_output}
   IMPACT: Complex multi-agent workflows remain coherent and recoverable
 ```
 
+### Selective Exceptions: Read-Only Tool Access
+
+Certain commands are allowed direct read-only tool usage for performance optimization:
+
+Command-specific tool exceptions:
+- moai:1-plan: Glob tool allowed for SPEC ID uniqueness validation (read-only; file creation delegated to agent)
+
+[HARD] Exception Requirements:
+- Only read-only operations may be performed directly
+- File creation/modification MUST be delegated to agents
+- Error handling logic MUST be included
+- Exception scope MUST be clearly documented in the command
+
+WHY: Selective read-only exceptions provide 30-40% performance improvement for validation-heavy operations
+IMPACT: Commands remain auditable while gaining speed benefits for non-destructive checks
+
+```
+
 Sections 7-9: Phase Workflow
 
 ```markdown
@@ -745,10 +792,9 @@ Section 10: Quick Reference
 ```markdown
 ## Quick Reference
 
-| Scenario | Entry Point | Key Phases | Expected Outcome |
-| -------- | ----------- | ---------- | ---------------- |
+Quick reference scenarios:
 
-{scenario_table_rows}
+{scenario_list}
 
 Version: {version}
 Last Updated: 2025-12-07

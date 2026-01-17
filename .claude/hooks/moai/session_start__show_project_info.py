@@ -14,13 +14,54 @@ Enhanced Features:
 - Risk assessment with performance metrics
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
+# =============================================================================
+# Windows UTF-8 Encoding Fix (Issue #249)
+# Ensures emoji characters are properly displayed on Windows terminals
+# =============================================================================
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        # Python < 3.7 or reconfigure not available
+        pass
+
+# =============================================================================
+# Constants - Risk Assessment Thresholds
+# =============================================================================
+# These thresholds determine project risk level based on various factors
+RISK_SCORE_HIGH = 20  # Score >= this is HIGH risk
+RISK_SCORE_MEDIUM = 10  # Score >= this (and < HIGH) is MEDIUM risk
+
+# Git changes thresholds for risk calculation
+GIT_CHANGES_HIGH_THRESHOLD = 20  # Adds 10 to risk score
+GIT_CHANGES_MEDIUM_THRESHOLD = 10  # Adds 5 to risk score
+
+# SPEC progress thresholds
+SPEC_PROGRESS_LOW = 50  # Below this adds 15 to risk score
+SPEC_PROGRESS_MEDIUM = 80  # Below this adds 8 to risk score
+
+# Risk score contributions
+RISK_GIT_CHANGES_HIGH = 10
+RISK_GIT_CHANGES_MEDIUM = 5
+RISK_SPEC_LOW = 15
+RISK_SPEC_MEDIUM = 8
+RISK_TEST_FAILED = 12
+RISK_COVERAGE_UNKNOWN = 5
+
+# Setup message suppression period (days)
+SETUP_MESSAGE_RESCAN_DAYS = 7
+
+# =============================================================================
 # Setup import path for shared modules
 HOOKS_DIR = Path(__file__).parent
 LIB_DIR = HOOKS_DIR / "lib"
@@ -28,6 +69,7 @@ if str(LIB_DIR) not in sys.path:
     sys.path.insert(0, str(LIB_DIR))
 
 # Import path utils for project root resolution
+from lib.file_utils import check_file_size  # noqa: E402
 from lib.path_utils import find_project_root  # noqa: E402
 
 # Import unified timeout manager and Git operations manager
@@ -211,6 +253,13 @@ except ImportError:
         """Load a YAML file using PyYAML or simple parser."""
         if not file_path.exists():
             return {}
+
+        # Check file size before reading (H2: 10MB limit)
+        is_safe, error_msg = check_file_size(file_path)
+        if not is_safe:
+            # File too large or other error, skip loading
+            return {}
+
         try:
             content = file_path.read_text(encoding="utf-8")
             if HAS_YAML_FALLBACK:
@@ -241,9 +290,14 @@ except ImportError:
         if not config:
             json_config_path = config_dir / "config.json"
             if json_config_path.exists():
-                try:
-                    config = json.loads(json_config_path.read_text(encoding="utf-8"))
-                except (json.JSONDecodeError, OSError):
+                # Check file size before reading (H2: 10MB limit)
+                is_safe, _ = check_file_size(json_config_path)
+                if is_safe:
+                    try:
+                        config = json.loads(json_config_path.read_text(encoding="utf-8"))
+                    except (json.JSONDecodeError, OSError):
+                        config = {}
+                else:
                     config = {}
 
         # Merge section files (they take priority for their specific keys)
@@ -348,7 +402,7 @@ def should_show_setup_messages() -> bool:
         # Flag is False, show messages
         return True
 
-    # Flag is True, check time threshold (7 days)
+    # Flag is True, check time threshold
     suppressed_at_str = session_config.get("setup_messages_suppressed_at")
     if not suppressed_at_str:
         # No timestamp recorded, show messages
@@ -359,8 +413,8 @@ def should_show_setup_messages() -> bool:
         now = datetime.now(suppressed_at.tzinfo) if suppressed_at.tzinfo else datetime.now()
         days_passed = (now - suppressed_at).days
 
-        # Show messages if more than 7 days have passed
-        return days_passed >= 7
+        # Show messages if threshold exceeded
+        return days_passed >= SETUP_MESSAGE_RESCAN_DAYS
     except (ValueError, TypeError):
         # If timestamp is invalid, show messages
         return True
@@ -380,7 +434,7 @@ def check_git_initialized() -> bool:
         return False
 
 
-def get_git_info() -> Dict[str, Any]:
+def get_git_info() -> dict[str, Any]:
     """Get comprehensive git information using optimized Git operations manager
 
     FIXED: Handles git not initialized state properly
@@ -429,6 +483,7 @@ def get_git_info() -> Dict[str, Any]:
 
     # Fallback to basic Git operations
     try:
+        import concurrent.futures
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         # Define git commands to run in parallel
@@ -447,14 +502,27 @@ def get_git_info() -> Dict[str, Any]:
             # Submit all tasks
             futures = {executor.submit(_run_git_command_fallback, cmd): key for cmd, key in git_commands}
 
-            # Collect results as they complete
-            for future in as_completed(futures):
-                key = futures[future]
-                try:
-                    results[key] = future.result()
-                except (TimeoutError, RuntimeError):
-                    # Future execution timeout or runtime errors
-                    results[key] = ""
+            # Collect results as they complete with overall timeout
+            # FIX #254: Add timeout to prevent infinite waiting on stuck git operations
+            try:
+                for future in as_completed(futures, timeout=8):
+                    key = futures[future]
+                    try:
+                        results[key] = future.result()
+                    except (TimeoutError, RuntimeError):
+                        # Future execution timeout or runtime errors
+                        results[key] = ""
+            except concurrent.futures.TimeoutError:
+                # Overall timeout exceeded - use whatever results we have
+                logging.warning("Git operations timeout after 8 seconds - using partial results")
+                # Collect any completed futures before timeout
+                for future, key in futures.items():
+                    if future.done():
+                        try:
+                            if key not in results:
+                                results[key] = future.result()
+                        except (TimeoutError, RuntimeError):
+                            results[key] = ""
 
         # Process results with proper handling for empty values
         branch = results.get("branch", "")
@@ -650,31 +718,31 @@ def get_spec_progress() -> dict[str, Any]:
 
 
 def calculate_risk(git_info: dict, spec_progress: dict, test_info: dict) -> str:
-    """Calculate overall project risk level"""
+    """Calculate overall project risk level using defined thresholds."""
     risk_score = 0
 
     # Git changes contribute to risk
-    if git_info["changes"] > 20:
-        risk_score += 10
-    elif git_info["changes"] > 10:
-        risk_score += 5
+    if git_info["changes"] > GIT_CHANGES_HIGH_THRESHOLD:
+        risk_score += RISK_GIT_CHANGES_HIGH
+    elif git_info["changes"] > GIT_CHANGES_MEDIUM_THRESHOLD:
+        risk_score += RISK_GIT_CHANGES_MEDIUM
 
     # SPEC progress contributes to risk
-    if spec_progress["percentage"] < 50:
-        risk_score += 15
-    elif spec_progress["percentage"] < 80:
-        risk_score += 8
+    if spec_progress["percentage"] < SPEC_PROGRESS_LOW:
+        risk_score += RISK_SPEC_LOW
+    elif spec_progress["percentage"] < SPEC_PROGRESS_MEDIUM:
+        risk_score += RISK_SPEC_MEDIUM
 
     # Test status contributes to risk
     if test_info["status"] != "✅":
-        risk_score += 12
+        risk_score += RISK_TEST_FAILED
     elif test_info["coverage"] == "unknown":
-        risk_score += 5
+        risk_score += RISK_COVERAGE_UNKNOWN
 
     # Determine risk level
-    if risk_score >= 20:
+    if risk_score >= RISK_SCORE_HIGH:
         return "HIGH"
-    elif risk_score >= 10:
+    elif risk_score >= RISK_SCORE_MEDIUM:
         return "MEDIUM"
     else:
         return "LOW"
@@ -893,31 +961,35 @@ def format_session_output() -> str:
     ]
 
     # FIX #5: Add personalization or setup guidance (never show template variables)
+    # Multilingual support: ko, en, ja, zh
+    conv_lang = personalization.get("conversation_language", "en")
+
     if personalization.get("needs_setup", False):
         # Show setup guidance (based on conversation_language)
-        if personalization["is_korean"]:
-            output.append(
-                "   👋 환영합니다! 프로젝트를 시작하기 전에 "
-                "'/moai:0-project setting' 명령어로 사용자 이름과 설정을 구성해주세요"
-            )
-        else:
-            output.append(
-                "   👋 Welcome! Before starting, please run '/moai:0-project setting' "
-                "to configure your name and project settings"
-            )
+        # Guide user to generate project documentation with /moai:0-project
+        setup_messages = {
+            "ko": "   👋 환영합니다! '/moai:0-project' 명령어로 프로젝트 문서를 생성해주세요",
+            "ja": "   👋 ようこそ！'/moai:0-project' コマンドでプロジェクトドキュメントを生成してください",
+            "zh": "   👋 欢迎！请运行 '/moai:0-project' 命令生成项目文档",
+            "en": "   👋 Welcome! Please run '/moai:0-project' to generate project documentation",
+        }
+        output.append(setup_messages.get(conv_lang, setup_messages["en"]))
     elif personalization["has_personalization"]:
         user_greeting = personalization.get("personalized_greeting", "")
-        if user_greeting:
-            if personalization["is_korean"]:
-                greeting = f"   👋 다시 오신 것을 환영합니다, {user_greeting}!"
-            else:
-                greeting = f"   👋 Welcome back, {user_greeting}!"
-        else:
-            if personalization["is_korean"]:
-                greeting = f"   👋 다시 오신 것을 환영합니다, {personalization['user_name']}님!"
-            else:
-                greeting = f"   👋 Welcome back, {personalization['user_name']}!"
-        output.append(greeting)
+        user_name = personalization.get("user_name", "")
+        display_name = user_greeting if user_greeting else user_name
+
+        # Prevent duplicate honorifics (e.g., "님님" in Korean, "さんさん" in Japanese)
+        ko_suffix = "" if display_name.endswith("님") else "님"
+        ja_suffix = "" if display_name.endswith("さん") else "さん"
+
+        welcome_back_messages = {
+            "ko": f"   👋 다시 오신 것을 환영합니다, {display_name}{ko_suffix}!",
+            "ja": f"   👋 おかえりなさい、{display_name}{ja_suffix}！",
+            "zh": f"   👋 欢迎回来，{display_name}！",
+            "en": f"   👋 Welcome back, {display_name}!",
+        }
+        output.append(welcome_back_messages.get(conv_lang, welcome_back_messages["en"]))
 
     # Configuration source is now handled silently for cleaner output
     # Users can check configuration using dedicated tools if needed
@@ -960,8 +1032,9 @@ def main() -> None:
         """Execute session start logic with proper error handling"""
         # Read JSON payload from stdin (for compatibility)
         # Handle Docker/non-interactive environments by checking TTY
+        # Note: SessionStart hook receives session info but we don't need it currently
         input_data = sys.stdin.read() if not sys.stdin.isatty() else "{}"
-        json.loads(input_data) if input_data.strip() else {}
+        _ = json.loads(input_data) if input_data.strip() else {}  # Explicitly ignore
 
         # Check if setup messages should be shown
         show_messages = should_show_setup_messages()
@@ -970,7 +1043,7 @@ def main() -> None:
         session_output = format_session_output() if show_messages else ""
 
         # Return as system message
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "continue": True,
             "systemMessage": session_output,
             "performance": {
@@ -996,7 +1069,7 @@ def main() -> None:
 
         except HookTimeoutError as e:
             # Enhanced timeout error handling
-            timeout_response: Dict[str, Any] = {
+            timeout_response: dict[str, Any] = {
                 "continue": True,
                 "systemMessage": "⚠️ Session start timeout - continuing without project info",
                 "error_details": {
@@ -1012,7 +1085,7 @@ def main() -> None:
 
         except Exception as e:
             # Enhanced error handling with context
-            error_response: Dict[str, Any] = {
+            error_response: dict[str, Any] = {
                 "continue": True,
                 "systemMessage": "⚠️ Session start encountered an error - continuing",
                 "error_details": {
@@ -1042,7 +1115,7 @@ def main() -> None:
 
             except PlatformTimeoutError:
                 # Timeout - return minimal valid response
-                timeout_response_legacy: Dict[str, Any] = {
+                timeout_response_legacy: dict[str, Any] = {
                     "continue": True,
                     "systemMessage": "⚠️ Session start timeout - continuing without project info",
                 }
@@ -1074,7 +1147,7 @@ def main() -> None:
 
         except json.JSONDecodeError as e:
             # JSON parse error
-            json_error_response: Dict[str, Any] = {
+            json_error_response: dict[str, Any] = {
                 "continue": True,
                 "hookSpecificOutput": {"error": f"JSON parse error: {e}"},
             }
@@ -1084,7 +1157,7 @@ def main() -> None:
 
         except Exception as e:
             # Unexpected error
-            general_error_response: Dict[str, Any] = {
+            general_error_response: dict[str, Any] = {
                 "continue": True,
                 "hookSpecificOutput": {"error": f"SessionStart error: {e}"},
             }

@@ -1,7 +1,13 @@
 ---
 name: expert-devops
-description: Use PROACTIVELY when deployment configuration, CI/CD pipelines, containerization, or cloud infrastructure setup is needed. Specialized in Docker, Kubernetes, CI/CD pipelines, and infrastructure automation.
-tools: Read, Write, Edit, Grep, Glob, WebFetch, Bash, TodoWrite, mcpgithubcreate-or-update-file, mcpgithubpush-files, mcpcontext7resolve-library-id, mcpcontext7get-library-docs
+description: |
+  DevOps specialist. Use PROACTIVELY for CI/CD, Docker, Kubernetes, deployment, and infrastructure automation.
+  MUST INVOKE when ANY of these keywords appear in user request:
+  EN: DevOps, CI/CD, Docker, Kubernetes, deployment, pipeline, infrastructure, container
+  KO: 데브옵스, CI/CD, 도커, 쿠버네티스, 배포, 파이프라인, 인프라, 컨테이너
+  JA: DevOps, CI/CD, Docker, Kubernetes, デプロイ, パイプライン, インフラ
+  ZH: DevOps, CI/CD, Docker, Kubernetes, 部署, 流水线, 基础设施
+tools: Read, Write, Edit, Grep, Glob, WebFetch, Bash, TodoWrite, mcp__github__create-or-update-file, mcp__github__push-files, mcp__context7__resolve-library-id, mcp__context7__get-library-docs
 model: inherit
 permissionMode: default
 skills: moai-foundation-claude, moai-workflow-project, moai-workflow-jit-docs, moai-platform-vercel, moai-platform-railway
@@ -160,12 +166,10 @@ Provide platform selection using AskUserQuestion with these options:
 
 ### Platform Comparison Matrix
 
-| Platform | Best For | Pricing | Pros | Cons |
-|----------|----------|---------|------|------|
-| Railway | Full-stack apps | $5-50/mo | Auto DB, Git deploy, zero-config | Limited regions |
-| Vercel | Next.js/React | Free-$20/mo | Edge CDN, preview deploys | 10s timeout |
-| AWS Lambda | Event-driven APIs | Pay-per-request | Infinite scale | Cold starts, complex |
-| Kubernetes | Microservices | $50+/mo | Auto-scaling, resilience | Complex, steep learning |
+- Railway: Best for full-stack apps, $5-50/mo pricing, offers auto DB and Git deploy with zero-config, limited regions
+- Vercel: Best for Next.js/React, Free-$20/mo pricing, offers Edge CDN and preview deploys, 10s timeout limit
+- AWS Lambda: Best for event-driven APIs, pay-per-request pricing, offers infinite scale, has cold starts and complexity
+- Kubernetes: Best for microservices, $50+/mo pricing, offers auto-scaling and resilience, complex with steep learning curve
 
 ## Workflow Steps
 
@@ -379,12 +383,10 @@ Next steps:
 
 ### TRUST 5 Compliance
 
-| Principle | Implementation |
-|-----------|-----------------|
-| Test First | CI/CD runs tests before deployment |
-| Readable | Clear infrastructure code, documented deployment steps |
-| Unified | Consistent patterns across dev/staging/prod |
-| Secured | Secrets management, vulnerability scanning, non-root |
+- Test First: CI/CD runs tests before deployment
+- Readable: Clear infrastructure code, documented deployment steps
+- Unified: Consistent patterns across dev/staging/prod
+- Secured: Secrets management, vulnerability scanning, non-root
 
 ### TAG Chain Integrity
 

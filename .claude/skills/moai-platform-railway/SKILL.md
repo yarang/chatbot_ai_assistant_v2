@@ -1,32 +1,42 @@
 ---
-name: moai-platform-railway
-description: Railway container deployment specialist covering Docker, multi-service architectures, persistent volumes, and auto-scaling. Use when deploying containerized full-stack applications.
-version: 1.1.0
-category: platform
-tags: [railway, docker, containers, multi-service, auto-scaling]
-context7-libraries: [railway]
-related-skills: [moai-platform-vercel, moai-domain-backend]
-updated: 2025-12-30
-status: active
-allowed-tools: Read, Write, Bash, Grep, Glob
+name: "moai-platform-railway"
+description: "Railway container deployment specialist covering Docker, multi-service architectures, persistent volumes, and auto-scaling. Use when deploying containerized full-stack applications, configuring multi-region deployments, or setting up persistent storage."
+version: 2.1.0
+category: "platform"
+modularized: true
+user-invocable: false
+tags: ['railway', 'docker', 'containers', 'multi-service', 'auto-scaling']
+context7-libraries: ['/railwayapp/railway']
+related-skills: ['moai-platform-vercel', 'moai-domain-backend']
+updated: 2026-01-11
+status: "active"
+allowed-tools:
+  - Read
+  - Write
+  - Bash
+  - Grep
+  - Glob
+  - mcp__context7__resolve-library-id
+  - mcp__context7__get-library-docs
 ---
 
 # moai-platform-railway: Container Deployment Specialist
 
-## Quick Reference (30 seconds)
+## Quick Reference
 
-Railway Platform Core: Container-first deployment platform with Docker and Nixpacks builds, multi-service architectures, persistent volumes, private networking, and auto-scaling capabilities.
+Railway Platform Core: Container-first deployment platform with Docker and Railpack builds, multi-service architectures, persistent volumes, private networking, and auto-scaling capabilities.
 
 ### Railway Optimal Use Cases
 
 Container Workloads:
+
 - Full-stack containerized applications with custom runtimes
 - Multi-service architectures with inter-service communication
-- Backend services requiring persistent connections (WebSocket, gRPC)
-- Custom runtime requirements (Python, Go, Rust, Elixir)
-- Database-backed applications with managed PostgreSQL, MySQL, Redis
+- Backend services requiring persistent connections such as WebSocket and gRPC
+- Database-backed applications with managed PostgreSQL, MySQL, and Redis
 
 Infrastructure Requirements:
+
 - Persistent volume storage for stateful workloads
 - Private networking for secure service mesh
 - Multi-region deployment for global availability
@@ -34,359 +44,103 @@ Infrastructure Requirements:
 
 ### Build Strategy Selection
 
-Docker Build: Custom system dependencies, multi-stage builds, specific base images
-Nixpacks Build: Standard runtimes (Node.js, Python, Go), zero-config, faster builds
+Docker Build is optimal for custom system dependencies, multi-stage builds, and specific base images.
+
+Railpack Build is optimal for standard runtimes including Node.js, Python, and Go, providing zero-config and faster builds.
+
+Note: Nixpacks is deprecated. New services default to Railpack.
 
 ### Key CLI Commands
 
-```bash
-railway login && railway init && railway link
-railway up                    # Deploy current directory
-railway up --detach          # Deploy without logs
-railway up --service api     # Deploy specific service
-railway variables --set KEY=value
-railway logs --service api
-```
+Railway CLI workflow begins with railway login, railway init, and railway link commands. Use railway up to deploy the current directory. Use railway up with the detach flag to deploy without waiting for logs. Use railway variables with the set flag to configure environment variables. Use railway logs with the service flag to view service logs. Use railway rollback with the previous flag to revert to the previous deployment.
+
+---
+
+## Module Index
+
+### Docker Deployment
+
+Module at modules/docker-deployment.md covers multi-stage Dockerfiles for Node.js, Python, Go, and Rust. Includes build optimization, image size reduction, health checks, and Railpack migration.
+
+### Multi-Service Architecture
+
+Module at modules/multi-service.md covers monorepo deployments, service communication, variable references, private networking, and message queue patterns.
+
+### Volumes and Storage
+
+Module at modules/volumes-storage.md covers persistent volume configuration, file storage service, SQLite on volumes, and backup/restore patterns.
+
+### Networking and Domains
+
+Module at modules/networking-domains.md covers private networking, custom domains with SSL, multi-region deployment, auto-scaling, and WebSocket support.
 
 ---
 
 ## Implementation Guide
 
-### Phase 1: Docker Deployment Patterns
+### Phase 1: Project Setup
 
-Multi-Stage Node.js Dockerfile:
-```dockerfile
-FROM node:20-alpine AS deps
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
+Begin with railway login, railway init, and railway link commands to authenticate, initialize, and link to a project.
 
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
+The railway.toml configuration file specifies build settings with builder set to DOCKERFILE and dockerfilePath pointing to the Dockerfile. Deploy settings include healthcheckPath for the health endpoint, healthcheckTimeout in seconds, restartPolicyType for restart behavior, and numReplicas for instance count. Resource settings under deploy.resources specify memory allocation and CPU limits.
 
-FROM node:20-alpine AS runner
-WORKDIR /app
-ENV NODE_ENV=production
-RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 appuser
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
-USER appuser
-EXPOSE 3000
-CMD ["node", "dist/main.js"]
-```
+### Phase 2: Container Configuration
 
-Python Production Dockerfile:
-```dockerfile
-FROM python:3.12-slim AS builder
-WORKDIR /app
-RUN pip install --no-cache-dir poetry
-COPY pyproject.toml poetry.lock ./
-RUN poetry config virtualenvs.create false && poetry install --no-dev
+For a quick start Node.js Dockerfile, the builder stage uses node:20-alpine as base, sets WORKDIR to /app, copies package files, runs npm ci, copies source files, and runs npm run build.
 
-FROM python:3.12-slim AS runner
-WORKDIR /app
-ENV PYTHONUNBUFFERED=1
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-COPY . .
-RUN useradd --create-home appuser
-USER appuser
-EXPOSE 8000
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-```
+The runner stage also uses node:20-alpine, sets WORKDIR to /app, sets NODE_ENV to production, creates a nodejs group and appuser user with specific IDs, copies node_modules and dist from the builder stage, switches to appuser, exposes port 3000, and runs the node command with dist/main.js.
 
-Go Production Dockerfile:
-```dockerfile
-FROM golang:1.23-alpine AS builder
-WORKDIR /app
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o main .
+For detailed patterns, see modules/docker-deployment.md.
 
-FROM alpine:latest AS runner
-RUN apk --no-cache add ca-certificates && adduser -D appuser
-WORKDIR /app
-COPY --from=builder /app/main .
-USER appuser
-EXPOSE 8080
-CMD ["./main"]
-```
+### Phase 3: Multi-Service Setup
 
-### Phase 2: Nixpacks Configuration
+Service Variable References use the double curly brace syntax with dollar sign prefix. Reference Postgres.DATABASE_URL for database connections, Redis.REDIS_URL for Redis connections, and api.RAILWAY_PRIVATE_DOMAIN for internal service communication.
 
-Note: Nixpacks is deprecated and in maintenance mode. New services default to Railpack. Existing services continue to work with Nixpacks. To migrate, set builder = "RAILPACK" in railway.toml.
+For Private Networking, create a getInternalUrl helper function that takes a service name and optional port defaulting to 3000. The function retrieves the RAILWAY_PRIVATE_DOMAIN environment variable for the service name in uppercase, returning the internal URL with http protocol and port, or localhost fallback.
 
-Node.js nixpacks.toml:
-```toml
-[phases.setup]
-nixPkgs = ["nodejs-20_x", "pnpm"]
+For detailed patterns, see modules/multi-service.md.
 
-[phases.install]
-cmds = ["pnpm install --frozen-lockfile"]
+### Phase 4: Storage and Scaling
 
-[phases.build]
-cmds = ["pnpm build"]
+Volume Configuration in railway.toml uses a volumes array section specifying mountPath for the directory path, name for the volume identifier, and size for the storage allocation.
 
-[start]
-cmd = "pnpm start"
-```
+Auto-Scaling Configuration in deploy.scaling section specifies minReplicas, maxReplicas, and targetCPUUtilization percentage.
 
-Python nixpacks.toml:
-```toml
-[phases.setup]
-nixPkgs = ["python312", "poetry"]
-aptPkgs = ["libpq-dev"]
-
-[phases.install]
-cmds = ["poetry install --no-dev"]
-
-[start]
-cmd = "poetry run gunicorn app:application --bind 0.0.0.0:$PORT"
-```
-
-### Phase 3: Railway Configuration
-
-railway.toml with Nixpacks:
-```toml
-[build]
-builder = "NIXPACKS"
-buildCommand = "npm run build"
-watchPatterns = ["src/**", "package.json"]
-
-[deploy]
-startCommand = "npm start"
-healthcheckPath = "/health"
-healthcheckTimeout = 100
-restartPolicyType = "ON_FAILURE"
-restartPolicyMaxRetries = 5
-numReplicas = 2
-
-[deploy.resources]
-memory = "512Mi"
-cpu = "0.5"
-```
-
-railway.toml with Docker:
-```toml
-[build]
-builder = "DOCKERFILE"
-dockerfilePath = "./Dockerfile"
-
-[deploy]
-healthcheckPath = "/api/health"
-healthcheckTimeout = 60
-restartPolicyType = "ALWAYS"
-numReplicas = 3
-
-[deploy.resources]
-memory = "1Gi"
-cpu = "1"
-```
-
-### Phase 4: Multi-Service Architecture
-
-Multi-Service Monorepo (railway.toml per service):
-
-Each service in a monorepo requires its own railway.toml in its directory.
-
-API Service (apps/api/railway.toml):
-```toml
-[build]
-builder = "DOCKERFILE"
-dockerfilePath = "./Dockerfile"
-
-[deploy]
-startCommand = "node dist/main.js"
-healthcheckPath = "/health"
-numReplicas = 3
-```
-
-Worker Service (apps/worker/railway.toml):
-```toml
-[build]
-builder = "DOCKERFILE"
-dockerfilePath = "./Dockerfile"
-
-[deploy]
-startCommand = "node dist/worker.js"
-numReplicas = 2
-```
-
-Scheduler Service (apps/scheduler/railway.toml):
-```toml
-[build]
-builder = "DOCKERFILE"
-dockerfilePath = "./Dockerfile"
-
-[deploy]
-startCommand = "node dist/scheduler.js"
-cronSchedule = "*/5 * * * *"
-```
-
-Service Variable References:
-Use Railway's variable reference syntax in service settings for cross-service communication with format ${{ServiceName.VARIABLE_NAME}}.
-
-Private Networking:
-```typescript
-const getInternalUrl = (service: string, port = 3000): string => {
-  const domain = process.env[`${service.toUpperCase()}_RAILWAY_PRIVATE_DOMAIN`]
-  return domain ? `http://${domain}:${port}` : `http://localhost:${port}`
-}
-
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    service: process.env.RAILWAY_SERVICE_NAME,
-    replica: process.env.RAILWAY_REPLICA_ID
-  })
-})
-```
-
-### Phase 5: Persistent Volumes
-
-Volume Configuration:
-```toml
-[deploy]
-startCommand = "npm start"
-
-[[volumes]]
-mountPath = "/app/data"
-name = "app-data"
-size = "10Gi"
-
-[[volumes]]
-mountPath = "/app/uploads"
-name = "user-uploads"
-size = "50Gi"
-```
-
-Persistent Storage Pattern:
-```typescript
-import { join } from 'path'
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs'
-
-const VOLUME_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH || '/app/data'
-
-class PersistentStorage {
-  constructor() {
-    if (!existsSync(VOLUME_PATH)) mkdirSync(VOLUME_PATH, { recursive: true })
-  }
-  write(file: string, data: Buffer | string) { writeFileSync(join(VOLUME_PATH, file), data) }
-  read(file: string): Buffer { return readFileSync(join(VOLUME_PATH, file)) }
-}
-```
-
-### Phase 6: Auto-Scaling
-
-Resource-Based Scaling:
-```toml
-[deploy.scaling]
-minReplicas = 2
-maxReplicas = 10
-targetCPUUtilization = 70
-targetMemoryUtilization = 80
-```
-
-Request-Based Scaling:
-```toml
-[deploy.scaling]
-minReplicas = 1
-maxReplicas = 20
-targetRequestsPerSecond = 100
-scaleDownDelaySeconds = 300
-```
-
-Application Metrics:
-```typescript
-import { register, Counter, Histogram } from 'prom-client'
-
-const httpRequests = new Counter({
-  name: 'http_requests_total',
-  help: 'Total HTTP requests',
-  labelNames: ['method', 'status']
-})
-
-app.get('/metrics', async (req, res) => {
-  res.set('Content-Type', register.contentType)
-  res.end(await register.metrics())
-})
-```
-
----
-
-## Multi-Region Deployment
-
-Available Regions: us-west1 (Oregon), us-east4 (Virginia), europe-west4 (Netherlands), asia-southeast1 (Singapore)
-
-```bash
-railway up --region us-west1
-railway up --region europe-west4
-```
-
-Region Configuration:
-```toml
-[[deploy.regions]]
-name = "us-west1"
-replicas = 3
-
-[[deploy.regions]]
-name = "europe-west4"
-replicas = 2
-```
-
-Database Read Replica:
-```typescript
-const primaryPool = new Pool({ connectionString: process.env.DATABASE_URL })
-const replicaPool = new Pool({ connectionString: process.env.DATABASE_REPLICA_URL })
-
-async function query(sql: string, params?: any[]) {
-  const isRead = sql.trim().toLowerCase().startsWith('select')
-  return (isRead ? replicaPool : primaryPool).query(sql, params)
-}
-```
+Multi-Region Configuration uses deploy.regions array with entries containing name for the region identifier and replicas for the instance count per region.
 
 ---
 
 ## CI/CD Integration
 
-GitHub Actions:
-```yaml
-name: Railway Deploy
-on:
-  push:
-    branches: [main]
+For GitHub Actions integration, create a workflow file named Railway Deploy with trigger on push to main branch. The deploy job runs on ubuntu-latest, checks out code, installs Railway CLI globally using npm, and runs railway up with detach flag using the RAILWAY_TOKEN secret from GitHub secrets.
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: npm i -g @railway/cli
-      - run: railway up --detach
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-```
+---
 
-Rollback Commands:
-```bash
-railway deployments list
-railway rollback <deployment-id>
-railway rollback --previous
-```
+## Context7 Documentation Access
+
+Step 1: Use mcp__context7__resolve-library-id with "railway" to get the library ID.
+
+Step 2: Use mcp__context7__get-library-docs with the resolved ID and specific topic.
 
 ---
 
 ## Works Well With
 
-- `moai-platform-vercel` - Edge deployment for frontend applications
-- `moai-domain-backend` - Backend service architecture patterns
-- `moai-lang-python` - Python FastAPI deployment configurations
-- `moai-lang-typescript` - TypeScript Node.js deployment patterns
+- moai-platform-vercel for edge deployment for frontend
+- moai-domain-backend for backend architecture patterns
+- moai-lang-python for Python FastAPI deployment
+- moai-lang-typescript for TypeScript Node.js patterns
+- moai-lang-go for Go service deployment
 
 ---
 
-Status: Production Ready | Version: 1.1.0 | Updated: 2025-12-30
+## Additional Resources
+
+- reference.md provides extended documentation and configuration
+- examples.md provides working code examples for common scenarios
+
+---
+
+Status: Production Ready
+Version: 2.1.0
+Updated: 2026-01-11

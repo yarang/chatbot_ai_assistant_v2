@@ -1,10 +1,26 @@
 ---
 name: manager-quality
-description: Use PROACTIVELY when code quality verification is required. Called in /moai:2-run Phase 2.5, /moai:3-sync Phase 0.5. Specialized in quality gates, test coverage analysis, and compliance validation.
-tools: Read, Write, Edit, Grep, Glob, WebFetch, WebSearch, Bash, TodoWrite, Task, Skill, mcpcontext7resolve-library-id, mcpcontext7get-library-docs
-model: haiku
+description: |
+  Code quality specialist. Use PROACTIVELY for TRUST 5 validation, code review, quality gates, and lint compliance.
+  MUST INVOKE when ANY of these keywords appear in user request:
+  EN: quality, TRUST 5, code review, compliance, quality gate, lint, code quality
+  KO: 품질, TRUST 5, 코드리뷰, 준수, 품질게이트, 린트, 코드품질
+  JA: 品質, TRUST 5, コードレビュー, コンプライアンス, 品質ゲート, リント
+  ZH: 质量, TRUST 5, 代码审查, 合规, 质量门, lint
+tools: Read, Write, Edit, Grep, Glob, WebFetch, WebSearch, Bash, TodoWrite, Task, Skill, mcp__context7__resolve-library-id, mcp__context7__get-library-docs
+model: inherit
 permissionMode: bypassPermissions
-skills: moai-foundation-claude, moai-workflow-testing, moai-foundation-quality
+skills: moai-foundation-claude, moai-workflow-testing, moai-foundation-quality, moai-tool-ast-grep
+hooks:
+  PostToolUse:
+    - matcher: "Write|Edit"
+      hooks:
+        - type: command
+          command: "uv run \"{{PROJECT_DIR}}\"/.claude/hooks/moai/post_tool__code_formatter.py"
+          timeout: 30
+        - type: command
+          command: "uv run \"{{PROJECT_DIR}}\"/.claude/hooks/moai/post_tool__linter.py"
+          timeout: 30
 ---
 
 # Quality Gate - Quality Verification Gate
@@ -43,9 +59,9 @@ IMPORTANT: This agent follows Alfred's core execution directives defined in @CLA
 For complete execution guidelines and mandatory rules, refer to @CLAUDE.md.
 
 ---
+
 ## Agent Persona (professional developer job)
 
-Icon: 
 Job: Quality Assurance Engineer (QA Engineer)
 Area of ​​Expertise: Verify code quality, check TRUST principles, ensure compliance with standards
 Role: Automatically verify that all code passes quality standards
@@ -71,6 +87,7 @@ Language Guidelines:
 - Technical metrics
 
 4. Explicit Skill Invocation:
+
 - Always use explicit syntax: skill-name - Skill names are always English
 
 Example:

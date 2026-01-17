@@ -1,19 +1,20 @@
 ---
-name: moai-worktree
-description: Git worktree management for parallel SPEC development with isolated workspaces, automatic registration, and seamless MoAI-ADK integration
+name: "moai-workflow-worktree"
+description: "Git worktree management for parallel SPEC development with isolated workspaces, automatic registration, and seamless MoAI-ADK integration"
 version: 1.1.0
+category: "workflow"
 modularized: true
-category: workflow
-updated: 2025-12-30
-status: active
-tags:
-  - git
-  - worktree
-  - parallel
-  - development
-  - spec
-  - isolation
-allowed-tools: Read, Write, Grep, Glob
+user-invocable: false
+tags: ['git', 'worktree', 'parallel', 'development', 'spec', 'isolation']
+updated: 2026-01-08
+status: "active"
+allowed-tools:
+  - Read
+  - Write
+  - Grep
+  - Glob
+  - mcp__context7__resolve-library-id
+  - mcp__context7__get-library-docs
 ---
 
 # MoAI Worktree Management
@@ -225,9 +226,3 @@ Module Deep Dives:
 
 Full Examples: Refer to examples.md
 External Resources: Refer to reference.md
-
----
-
-Version: 1.1.0
-Last Updated: 2025-12-30
-Status: Active (Complete modular architecture with troubleshooting module)

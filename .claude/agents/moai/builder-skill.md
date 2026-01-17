@@ -1,10 +1,26 @@
 ---
 name: builder-skill
-description: Creates modular Skills for Claude Code extensions with official standards compliance and progressive disclosure patterns. Specialized in skill architecture, YAML frontmatter design, and knowledge organization.
-tools: Read, Write, Edit, Grep, Glob, WebFetch, WebSearch, Bash, TodoWrite, Task, Skill, mcpcontext7resolve-library-id, mcpcontext7get-library-docs
+description: |
+  Skill creation specialist. Use PROACTIVELY for creating skills, YAML frontmatter design, and knowledge organization.
+  MUST INVOKE when ANY of these keywords appear in user request:
+  EN: create skill, new skill, skill optimization, knowledge domain, YAML frontmatter
+  KO: 스킬생성, 새스킬, 스킬최적화, 지식도메인, YAML프론트매터
+  JA: スキル作成, 新スキル, スキル最適化, 知識ドメイン, YAMLフロントマター
+  ZH: 创建技能, 新技能, 技能优化, 知识领域, YAML前置信息
+tools: Read, Write, Edit, Grep, Glob, WebFetch, WebSearch, Bash, TodoWrite, Task, Skill, mcp__context7__resolve-library-id, mcp__context7__get-library-docs
 model: inherit
 permissionMode: bypassPermissions
 skills: moai-foundation-claude, moai-workflow-project
+hooks:
+  PostToolUse:
+    - matcher: "Write|Edit"
+      hooks:
+        - type: command
+          command: "uv run \"{{PROJECT_DIR}}\"/.claude/hooks/moai/post_tool__code_formatter.py"
+          timeout: 30
+        - type: command
+          command: "uv run \"{{PROJECT_DIR}}\"/.claude/hooks/moai/post_tool__linter.py"
+          timeout: 30
 ---
 
 # Skill Orchestration Metadata (v1.0)
@@ -66,7 +82,7 @@ delegates_to: ["mcp-context7", "manager-quality"] # Research and validation dele
 requires_approval: true # User approval before skill finalization
 
 performance:
-avg_execution_time_seconds: 1080 # ~18 minutes per complex skill (15% improvement)
+avg_execution_time_seconds: 1080
 context_heavy: true # Loads templates, skills database, patterns
 mcp_integration: ["context7"] # MCP tools for documentation research
 optimization_version: "v2.0" # Optimized skill configuration
@@ -135,8 +151,8 @@ Context7 MCP Integration:
 Research Execution:
 
 Execute comprehensive documentation retrieval using the two-step Context7 access pattern:
-1. Library Resolution: First resolve the library name to its Context7-compatible ID using the mcpcontext7resolve-library-id tool with the specific library name (e.g., "pytest")
-2. Documentation Retrieval: Then fetch the latest documentation using mcpcontext7get-library-docs tool with the resolved Context7 ID, targeted topic, and appropriate token allocation for comprehensive coverage
+1. Library Resolution: First resolve the library name to its Context7-compatible ID using the mcp__context7__resolve-library-id tool with the specific library name (e.g., "pytest")
+2. Documentation Retrieval: Then fetch the latest documentation using mcp__context7__get-library-docs tool with the resolved Context7 ID, targeted topic, and appropriate token allocation for comprehensive coverage
 
 Quality Validation:
 - Documentation currency verification
