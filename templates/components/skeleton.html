@@ -1,0 +1,399 @@
+{% macro skeleton_card(rows=3) %}
+{#
+  Skeleton card component for loading state
+
+  Args:
+      rows: Number of content rows to display
+#}
+<div class="skeleton-card" aria-hidden="true" role="presentation">
+    <div class="skeleton-header">
+        <div class="skeleton-avatar"></div>
+        <div class="skeleton-header-text">
+            <div class="skeleton-title"></div>
+            <div class="skeleton-subtitle"></div>
+        </div>
+    </div>
+    {% for _ in range(rows) %}
+    <div class="skeleton-content"></div>
+    {% endfor %}
+</div>
+
+<style>
+    .skeleton-card {
+        background: var(--card-background);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-lg);
+        padding: var(--spacing-lg);
+        margin-bottom: var(--spacing-lg);
+    }
+
+    .skeleton-header {
+        display: flex;
+        gap: var(--spacing-md);
+        margin-bottom: var(--spacing-md);
+        align-items: center;
+    }
+
+    .skeleton-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: var(--radius-full);
+        background: linear-gradient(
+            90deg,
+            var(--bg-secondary) 25%,
+            var(--bg-hover) 50%,
+            var(--bg-secondary) 75%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        flex-shrink: 0;
+    }
+
+    .skeleton-header-text {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+
+    .skeleton-title {
+        width: 60%;
+        height: 20px;
+        border-radius: var(--radius-sm);
+        background: linear-gradient(
+            90deg,
+            var(--bg-secondary) 25%,
+            var(--bg-hover) 50%,
+            var(--bg-secondary) 75%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+    }
+
+    .skeleton-subtitle {
+        width: 40%;
+        height: 16px;
+        border-radius: var(--radius-sm);
+        background: linear-gradient(
+            90deg,
+            var(--bg-secondary) 25%,
+            var(--bg-hover) 50%,
+            var(--bg-secondary) 75%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        animation-delay: 0.1s;
+    }
+
+    .skeleton-content {
+        width: 100%;
+        height: 16px;
+        border-radius: var(--radius-sm);
+        margin-bottom: var(--spacing-sm);
+        background: linear-gradient(
+            90deg,
+            var(--bg-secondary) 25%,
+            var(--bg-hover) 50%,
+            var(--bg-secondary) 75%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+    }
+
+    .skeleton-content:nth-child(2) { animation-delay: 0.15s; width: 90%; }
+    .skeleton-content:nth-child(3) { animation-delay: 0.2s; width: 80%; }
+    .skeleton-content:nth-child(4) { animation-delay: 0.25s; width: 85%; }
+    .skeleton-content:nth-child(5) { animation-delay: 0.3s; width: 75%; }
+
+    @keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .skeleton-avatar,
+        .skeleton-title,
+        .skeleton-subtitle,
+        .skeleton-content {
+            animation: none;
+            background: var(--bg-secondary);
+        }
+    }
+</style>
+{% endmacro %}
+
+{% macro skeleton_table(rows=5, cols=4) %}
+{#
+  Skeleton table component for loading state
+
+  Args:
+      rows: Number of rows to display
+      cols: Number of columns to display
+#}
+<div class="skeleton-table-container" aria-hidden="true" role="presentation">
+    <div class="skeleton-table-header">
+        {% for _ in range(cols) %}
+        <div class="skeleton-table-cell skeleton-table-head"></div>
+        {% endfor %}
+    </div>
+    {% for _ in range(rows) %}
+    <div class="skeleton-table-row">
+        {% for _ in range(cols) %}
+        <div class="skeleton-table-cell"></div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</div>
+
+<style>
+    .skeleton-table-container {
+        width: 100%;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        background: var(--card-background);
+    }
+
+    .skeleton-table-header {
+        display: grid;
+        grid-template-columns: repeat({{ cols }}, 1fr);
+        gap: var(--spacing-md);
+        padding: var(--spacing-md);
+        background: var(--bg-secondary);
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .skeleton-table-row {
+        display: grid;
+        grid-template-columns: repeat({{ cols }}, 1fr);
+        gap: var(--spacing-md);
+        padding: var(--spacing-md);
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .skeleton-table-row:last-child {
+        border-bottom: none;
+    }
+
+    .skeleton-table-cell {
+        height: 20px;
+        border-radius: var(--radius-sm);
+        background: linear-gradient(
+            90deg,
+            var(--bg-secondary) 25%,
+            var(--bg-hover) 50%,
+            var(--bg-secondary) 75%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+    }
+
+    .skeleton-table-head {
+        height: 24px;
+    }
+
+    @keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .skeleton-table-cell {
+            animation: none;
+            background: var(--bg-secondary);
+        }
+    }
+</style>
+{% endmacro %}
+
+{% macro skeleton_grid(items=6) %}
+{#
+  Skeleton grid component for loading state
+
+  Args:
+      items: Number of grid items to display
+#}
+<div class="skeleton-grid" aria-hidden="true" role="presentation">
+    {% for _ in range(items) %}
+    <div class="skeleton-grid-item">
+        <div class="skeleton-grid-image"></div>
+        <div class="skeleton-grid-content">
+            <div class="skeleton-grid-title"></div>
+            <div class="skeleton-grid-text"></div>
+            <div class="skeleton-grid-text"></div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<style>
+    .skeleton-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: var(--spacing-lg);
+    }
+
+    .skeleton-grid-item {
+        background: var(--card-background);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-lg);
+        padding: var(--spacing-md);
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-md);
+    }
+
+    .skeleton-grid-image {
+        width: 100%;
+        aspect-ratio: 16/9;
+        border-radius: var(--radius-md);
+        background: linear-gradient(
+            90deg,
+            var(--bg-secondary) 25%,
+            var(--bg-hover) 50%,
+            var(--bg-secondary) 75%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+    }
+
+    .skeleton-grid-content {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+
+    .skeleton-grid-title {
+        width: 70%;
+        height: 24px;
+        border-radius: var(--radius-sm);
+        background: linear-gradient(
+            90deg,
+            var(--bg-secondary) 25%,
+            var(--bg-hover) 50%,
+            var(--bg-secondary) 75%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+    }
+
+    .skeleton-grid-text {
+        width: 100%;
+        height: 16px;
+        border-radius: var(--radius-sm);
+        background: linear-gradient(
+            90deg,
+            var(--bg-secondary) 25%,
+            var(--bg-hover) 50%,
+            var(--bg-secondary) 75%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+    }
+
+    .skeleton-grid-text:last-child {
+        width: 60%;
+    }
+
+    @keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+
+    @media (max-width: 768px) {
+        .skeleton-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .skeleton-grid-image,
+        .skeleton-grid-title,
+        .skeleton-grid-text {
+            animation: none;
+            background: var(--bg-secondary);
+        }
+    }
+</style>
+{% endmacro %}
+
+{% macro spinner(size='md', text='Loading...') %}
+{#
+  Loading spinner component
+
+  Args:
+      size: sm (32px), md (48px), lg (64px)
+      text: Optional loading text
+#}
+<div class="spinner-wrapper" role="status" aria-live="polite">
+    <div class="spinner spinner-{{ size }}"></div>
+    {% if text %}
+    <p class="spinner-text">{{ text }}</p>
+    {% endif %}
+    <span class="sr-only">Loading...</span>
+</div>
+
+<style>
+    .spinner-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: var(--spacing-md);
+        padding: var(--spacing-xl);
+    }
+
+    .spinner {
+        border: 3px solid var(--border-color);
+        border-top-color: var(--primary-color);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+
+    .spinner-sm {
+        width: 32px;
+        height: 32px;
+        border-width: 2px;
+    }
+
+    .spinner-md {
+        width: 48px;
+        height: 48px;
+    }
+
+    .spinner-lg {
+        width: 64px;
+        height: 64px;
+        border-width: 4px;
+    }
+
+    .spinner-text {
+        font-size: 0.875rem;
+        color: var(--text-muted);
+        margin: 0;
+    }
+
+    .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .spinner {
+            animation: none;
+            border-top-color: var(--text-muted);
+        }
+    }
+</style>
+{% endmacro %}

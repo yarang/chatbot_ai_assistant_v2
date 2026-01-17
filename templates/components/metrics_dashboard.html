@@ -1,0 +1,355 @@
+{% macro metrics_dashboard() %}
+<div class="metrics-dashboard">
+    <div class="metrics-header">
+        <h3>System Performance</h3>
+        <button id="refresh-metrics" class="btn btn-secondary btn-sm" title="Refresh metrics">
+            <span class="refresh-icon">🔄</span>
+        </button>
+    </div>
+
+    <div class="metrics-grid" id="metrics-grid">
+        <!-- Metrics will be loaded here -->
+        <div class="metric-card loading">
+            <div class="skeleton-shimmer"></div>
+        </div>
+        <div class="metric-card loading">
+            <div class="skeleton-shimmer"></div>
+        </div>
+        <div class="metric-card loading">
+            <div class="skeleton-shimmer"></div>
+        </div>
+        <div class="metric-card loading">
+            <div class="skeleton-shimmer"></div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .metrics-dashboard {
+        background: var(--card-background);
+        border-radius: var(--radius-lg);
+        padding: var(--spacing-lg);
+        border: 1px solid var(--border-color);
+        margin-bottom: var(--spacing-lg);
+    }
+
+    .metrics-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: var(--spacing-lg);
+    }
+
+    .metrics-header h3 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin: 0;
+        color: var(--text-color);
+    }
+
+    .refresh-icon {
+        display: inline-block;
+        transition: transform var(--transition-base);
+    }
+
+    .refresh-icon.spinning {
+        animation: spin 0.6s linear infinite;
+    }
+
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: var(--spacing-md);
+    }
+
+    .metric-card {
+        background: var(--bg-secondary);
+        border-radius: var(--radius-md);
+        padding: var(--spacing-md);
+        border: 1px solid var(--border-color);
+        transition: all var(--transition-base);
+    }
+
+    .metric-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+    }
+
+    .metric-label {
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: var(--spacing-xs);
+    }
+
+    .metric-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-color);
+        margin-bottom: var(--spacing-xs);
+    }
+
+    .metric-trend {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+        font-size: 0.875rem;
+    }
+
+    .metric-trend.positive {
+        color: var(--success-color);
+    }
+
+    .metric-trend.negative {
+        color: var(--danger-color);
+    }
+
+    .metric-trend.neutral {
+        color: var(--text-muted);
+    }
+
+    /* Skeleton Loading */
+    .metric-card.loading {
+        height: 120px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .skeleton-shimmer {
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(
+            90deg,
+            var(--bg-secondary) 25%,
+            var(--bg-hover) 50%,
+            var(--bg-secondary) 75%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: var(--radius-md);
+    }
+
+    @keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+
+    /* Health Status Badge */
+    .health-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+        padding: 0.25rem 0.5rem;
+        border-radius: var(--radius-full);
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .health-badge.healthy {
+        background: var(--success-light);
+        color: var(--success-color);
+    }
+
+    .health-badge.warning {
+        background: var(--warning-light);
+        color: var(--warning-color);
+    }
+
+    .health-badge.critical {
+        background: var(--danger-light);
+        color: var(--danger-color);
+    }
+
+    .health-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+        animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .metrics-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .metrics-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<script>
+(function() {
+    const metricsGrid = document.getElementById('metrics-grid');
+    const refreshBtn = document.getElementById('refresh-metrics');
+    const refreshIcon = refreshBtn?.querySelector('.refresh-icon');
+    let lastMetrics = null;
+
+    async function loadMetrics() {
+        if (refreshIcon) {
+            refreshIcon.classList.add('spinning');
+        }
+
+        try {
+            const response = await fetch('/metrics/summary');
+            if (!response.ok) throw new Error('Failed to fetch metrics');
+
+            const data = await response.json();
+            renderMetrics(data);
+            lastMetrics = data;
+        } catch (error) {
+            console.error('Failed to load metrics:', error);
+            renderError();
+        } finally {
+            if (refreshIcon) {
+                refreshIcon.classList.remove('spinning');
+            }
+        }
+    }
+
+    function renderMetrics(data) {
+        if (!metricsGrid) return;
+
+        const metrics = calculateDerivedMetrics(data);
+        metricsGrid.innerHTML = metrics.map(metric => createMetricCard(metric)).join('');
+    }
+
+    function calculateDerivedMetrics(data) {
+        const endpoints = data.endpoints || {};
+        const cache = data.cache || {};
+
+        // Calculate totals
+        let totalRequests = 0;
+        let totalErrors = 0;
+        let totalAvgLatency = 0;
+        let endpointCount = 0;
+
+        for (const [path, stats] of Object.entries(endpoints)) {
+            totalRequests += stats.count || 0;
+            totalErrors += stats.errors || 0;
+            if (stats.avg) {
+                totalAvgLatency += stats.avg;
+                endpointCount++;
+            }
+        }
+
+        const avgLatency = endpointCount > 0 ? totalAvgLatency / endpointCount : 0;
+        const errorRate = totalRequests > 0 ? (totalErrors / totalRequests) * 100 : 0;
+        const cacheHitRate = cache.embedding?.hit_rate || 0;
+
+        return [
+            {
+                label: 'Total Requests',
+                value: formatNumber(totalRequests),
+                trend: getTrend('requests', totalRequests),
+                icon: '📊'
+            },
+            {
+                label: 'Avg Latency',
+                value: formatLatency(avgLatency),
+                trend: getLatencyTrend(avgLatency),
+                icon: '⚡'
+            },
+            {
+                label: 'Error Rate',
+                value: errorRate.toFixed(1) + '%',
+                trend: getErrorTrend(errorRate),
+                icon: '🎯'
+            },
+            {
+                label: 'Cache Hit Rate',
+                value: (cacheHitRate * 100).toFixed(0) + '%',
+                trend: getCacheTrend(cacheHitRate),
+                icon: '💾'
+            }
+        ];
+    }
+
+    function createMetricCard(metric) {
+        return `
+            <div class="metric-card fade-in">
+                <div class="metric-label">${metric.icon} ${metric.label}</div>
+                <div class="metric-value">${metric.value}</div>
+                <div class="metric-trend ${metric.trend.class}">
+                    ${metric.trend.icon}
+                    <span>${metric.trend.text}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    function getTrend(type, current) {
+        if (!lastMetrics) return { icon: '–', text: 'No data', class: 'neutral' };
+
+        // Simple trend logic - in production, compare with historical data
+        return { icon: '✓', text: 'Normal', class: 'positive' };
+    }
+
+    function getLatencyTrend(latency) {
+        if (latency < 100) return { icon: '✓', text: 'Excellent', class: 'positive' };
+        if (latency < 500) return { icon: '○', text: 'Good', class: 'neutral' };
+        return { icon: '!', text: 'Slow', class: 'negative' };
+    }
+
+    function getErrorTrend(errorRate) {
+        if (errorRate < 1) return { icon: '✓', text: 'Healthy', class: 'positive' };
+        if (errorRate < 5) return { icon: '○', text: 'Elevated', class: 'neutral' };
+        return { icon: '✕', text: 'Critical', class: 'negative' };
+    }
+
+    function getCacheTrend(hitRate) {
+        if (hitRate > 0.7) return { icon: '✓', text: 'Excellent', class: 'positive' };
+        if (hitRate > 0.4) return { icon: '○', text: 'Good', class: 'neutral' };
+        return { icon: '○', text: 'Low', class: 'neutral' };
+    }
+
+    function formatNumber(num) {
+        if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+        return num.toString();
+    }
+
+    function formatLatency(ms) {
+        if (ms < 1) return (ms * 1000).toFixed(0) + 'ms';
+        return ms.toFixed(0) + 'ms';
+    }
+
+    function renderError() {
+        if (!metricsGrid) return;
+        metricsGrid.innerHTML = `
+            <div class="metric-card" style="grid-column: 1 / -1; text-align: center; color: var(--danger-color);">
+                <div class="metric-value" style="font-size: 1rem;">⚠️ Unable to load metrics</div>
+                <div class="metric-label">Check if the server is running</div>
+            </div>
+        `;
+    }
+
+    // Auto-refresh every 30 seconds
+    function autoRefresh() {
+        setInterval(loadMetrics, 30000);
+    }
+
+    // Initialize
+    if (metricsGrid) {
+        loadMetrics();
+        autoRefresh();
+
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', loadMetrics);
+        }
+    }
+})();
+</script>
+{% endmacro %}

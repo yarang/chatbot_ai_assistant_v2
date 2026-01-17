@@ -7,6 +7,7 @@ Chatbot AI Assistant V2 - Main Application
 - /rag/*         : RAG 관리 웹 페이지
 - /*             : 메인 웹 페이지
 """
+
 import logging
 import os
 import sys
@@ -19,6 +20,7 @@ load_dotenv(override=True)
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
 # ==============================================================================
@@ -36,6 +38,7 @@ from core.database import get_engine, init_db
 from core.exceptions import install_exception_handlers
 from core.logger import configure_logging
 from core.middleware import add_middlewares
+from core.metrics import MetricsMiddleware, get_metrics_summary, get_prometheus_metrics
 
 
 @asynccontextmanager
@@ -67,13 +70,17 @@ async def lifespan(app: FastAPI):
     # Skip automatic webhook setup to avoid blocking
     if settings.telegram.bot_token and settings.telegram.webhook_url:
         logger.info(f"Telegram webhook URL configured: {settings.telegram.webhook_url}")
-        logger.info("Set webhook manually using: curl -F \"url={settings.telegram.webhook_url}\" https://api.telegram.org/bot{settings.telegram.bot_token}/setWebhook")
+        logger.info(
+            'Set webhook manually using: curl -F "url={settings.telegram.webhook_url}" https://api.telegram.org/bot{settings.telegram.bot_token}/setWebhook'
+        )
     elif settings.telegram.bot_token:
         logger.warning("⚠️  TELEGRAM_WEBHOOK_URL not configured - webhook not set")
 
     if settings.telegram.webhook_url and "ngrok" in settings.telegram.webhook_url:
-        logger.warning("⚠️  Using ngrok? Ensure your BotFather 'Domain' setting matches: " + settings.telegram.webhook_url)
-
+        logger.warning(
+            "⚠️  Using ngrok? Ensure your BotFather 'Domain' setting matches: "
+            + settings.telegram.webhook_url
+        )
 
     yield
     # Shutdown (필요시 정리 작업 추가)
@@ -99,7 +106,7 @@ def create_app() -> FastAPI:
         title="Chatbot AI Assistant",
         lifespan=lifespan,
         version="2.0.0",
-        description="AI 어시스턴트 with RAG, Multi-Agent, Telegram integration"
+        description="AI 어시스턴트 with RAG, Multi-Agent, Telegram integration",
     )
 
     # ======================================================================
@@ -114,6 +121,23 @@ def create_app() -> FastAPI:
     add_middlewares(app)
     install_exception_handlers(app)
 
+    # 메트릭 미들웨어 추가
+    app.add_middleware(MetricsMiddleware)
+
+    # ======================================================================
+    # Metrics Endpoints
+    # ======================================================================
+
+    @app.get("/metrics")
+    async def metrics_prometheus():
+        """Prometheus 메트릭 엔드포인트"""
+        return Response(content=await get_prometheus_metrics(), media_type="text/plain")
+
+    @app.get("/metrics/summary")
+    async def metrics_summary():
+        """메트릭 요약 엔드포인트 (JSON)"""
+        return await get_metrics_summary()
+
     # ======================================================================
     # Router Inclusion (순서가 중요합니다!)
     # ======================================================================
@@ -124,6 +148,7 @@ def create_app() -> FastAPI:
     #    - /api/files/*     : 파일 업로드
     #    - /api/rag/*       : RAG 검색
     from api import get_api_router
+
     api_router = get_api_router()
     app.include_router(api_router, prefix="/api")
 
@@ -131,11 +156,7 @@ def create_app() -> FastAPI:
     #    Telegram Bot에서 호출하는 엔드포인트
     #    - /webhook          : Webhook 엔드포인트
     #    - /telegram/test    : 테스트 엔드포인트
-    app.include_router(
-        telegram_router,
-        tags=["Telegram"],
-        include_in_schema=True
-    )
+    app.include_router(telegram_router, tags=["Telegram"], include_in_schema=True)
 
     # 3. RAG 관리 웹 페이지 (/rag/*)
     #    RAG 파일 및 검색 관리를 위한 웹 인터페이스

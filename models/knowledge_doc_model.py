@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 class KnowledgeDoc(Base):
     """
     RAG 지식 문서 모델 클래스
-    
+
     Attributes:
         id: 문서 ID (Primary Key, UUID)
         chat_room_id: 채팅방 ID (Foreign Key)
@@ -31,36 +31,39 @@ class KnowledgeDoc(Base):
         size: 파일 크기 (bytes)
         created_at: 생성 일시
     """
+
     __tablename__ = "knowledge_docs"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     chat_room_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("chat_rooms.id", ondelete="CASCADE"),
         nullable=False,
-        index=True
+        index=True,
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=False,
-        index=True
+        index=True,
     )
     filename: Mapped[str] = mapped_column(String, nullable=False)
     file_path: Mapped[str] = mapped_column(String, nullable=False)
     file_type: Mapped[str] = mapped_column(String, nullable=False)
     processing_method: Mapped[str] = mapped_column(String, default="text")
     size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=func.now(), index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP, server_default=func.now(), index=True
+    )
 
     # Added for RAG
-    content: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Text content
-    embedding = mapped_column(Vector(1536))  # OpenAI embedding dimension
-    
+    content: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # Text content
+    embedding = mapped_column(Vector(768))  # Google text-embedding-004 dimension
+
     # Metadata columns
     source_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     tags: Mapped[Optional[List[str]]] = mapped_column(ARRAY(String), nullable=True)

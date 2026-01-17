@@ -4,7 +4,9 @@
 파일 메타데이터 CRUD 작업을 처리합니다.
 SQL Injection 방지를 위해 SQLAlchemy ORM을 사용합니다.
 """
+
 from typing import List, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, select
@@ -15,7 +17,8 @@ from models.file import File
 
 class FileCreate(BaseModel):
     """파일 생성 DTO"""
-    chat_room_id: int = Field(..., gt=0, description="채팅방 ID (양수)")
+
+    chat_room_id: UUID = Field(..., description="채팅방 ID (UUID)")
     filename: str = Field(..., min_length=1, max_length=255, description="파일명")
     file_path: str = Field(..., min_length=1, max_length=500, description="파일 경로")
     file_size: int = Field(..., ge=0, description="파일 크기 (bytes)")
@@ -24,6 +27,7 @@ class FileCreate(BaseModel):
 
 class FileUpdate(BaseModel):
     """파일 수정 DTO"""
+
     status: Optional[str] = Field(None, max_length=50, description="파일 상태")
     error_message: Optional[str] = Field(None, description="에러 메시지")
 
@@ -71,17 +75,15 @@ class FileRepository:
         Returns:
             파일 객체 또는 None
         """
-        result = await self.session.execute(
-            select(File).where(File.id == file_id)
-        )
+        result = await self.session.execute(select(File).where(File.id == file_id))
         return result.scalar_one_or_none()
 
-    async def get_by_chat_room_id(self, chat_room_id: int) -> List[File]:
+    async def get_by_chat_room_id(self, chat_room_id: UUID) -> List[File]:
         """
         채팅방 ID로 파일 목록 조회
 
         Args:
-            chat_room_id: 채팅방 ID
+            chat_room_id: 채팅방 ID (UUID)
 
         Returns:
             파일 목록
@@ -93,7 +95,7 @@ class FileRepository:
         )
         return list(result.scalars().all())
 
-    async def check_duplicate(self, chat_room_id: int, filename: str) -> bool:
+    async def check_duplicate(self, chat_room_id: UUID, filename: str) -> bool:
         """
         중복 파일 확인
 
@@ -106,19 +108,13 @@ class FileRepository:
         """
         result = await self.session.execute(
             select(File).where(
-                and_(
-                    File.chat_room_id == chat_room_id,
-                    File.filename == filename
-                )
+                and_(File.chat_room_id == chat_room_id, File.filename == filename)
             )
         )
         return result.scalar_one_or_none() is not None
 
     async def update_status(
-        self,
-        file_id: int,
-        status: str,
-        error_message: Optional[str] = None
+        self, file_id: int, status: str, error_message: Optional[str] = None
     ) -> Optional[File]:
         """
         파일 상태 업데이트

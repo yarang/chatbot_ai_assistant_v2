@@ -94,6 +94,7 @@ def record_failed_attempt(client_ip: str) -> int:
 
     return len(FAILED_AUTH_ATTEMPTS[client_ip])
 
+
 async def get_bot():
     global bot, bot_initialized
     if not bot_initialized and bot_token:
@@ -131,7 +132,9 @@ def verify_webhook_secret(request: Request) -> bool:
 
     # Compare secrets
     if received_secret != webhook_secret:
-        logger.warning(f"Invalid webhook secret token received: {received_secret[:10]}...")
+        logger.warning(
+            f"Invalid webhook secret token received: {received_secret[:10]}..."
+        )
         return False
 
     return True
@@ -163,9 +166,11 @@ def extract_request_info(request: Request) -> Dict[str, str]:
     responses={
         200: {"description": "Update received and queued for processing"},
         401: {"description": "Unauthorized - Invalid webhook secret token"},
-        429: {"description": "Too Many Requests - IP blocked due to failed authentication attempts"},
+        429: {
+            "description": "Too Many Requests - IP blocked due to failed authentication attempts"
+        },
     },
-    include_in_schema=True
+    include_in_schema=True,
 )
 async def webhook(request: Request, background_tasks: BackgroundTasks):
     """
@@ -179,7 +184,7 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
     """
     # Extract request information for logging
     req_info = extract_request_info(request)
-    client_ip = req_info['client_host']
+    client_ip = req_info["client_host"]
 
     # Check if IP is blocked due to too many failed attempts
     if is_ip_blocked(client_ip):
@@ -190,7 +195,7 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
         )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many failed authentication attempts. Please try again later."
+            detail="Too many failed authentication attempts. Please try again later.",
         )
 
     # Verify webhook secret token
@@ -210,7 +215,7 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
         # Return 401 Unauthorized to reject the request
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid webhook secret token"
+            detail="Invalid webhook secret token",
         )
 
     bot_instance = await get_bot()
@@ -236,10 +241,7 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
     except Exception as e:
         # Log error with request context
         logger.error(
-            f"Error processing webhook. "
-            f"Client: {client_ip}, "
-            f"Error: {e}",
-            exc_info=True
+            f"Error processing webhook. Client: {client_ip}, Error: {e}", exc_info=True
         )
         # Still return 200 to avoid Telegram retries
         # (The error is logged, so we can monitor it)
@@ -252,6 +254,7 @@ BOT_USERNAME = None
 
 # Global lock per user to prevent concurrent processing
 USER_LOCKS: Dict[int, asyncio.Lock] = {}
+
 
 def get_user_lock(user_id: int) -> asyncio.Lock:
     if user_id not in USER_LOCKS:
@@ -305,7 +308,9 @@ async def edit_message_with_retry(
                 return False
             elif "429" in error_str or "Too Many Requests" in error_str:
                 # Rate limit - apply backoff
-                logger.warning(f"Rate limit hit on attempt {attempt + 1}/{max_retries}: {e}")
+                logger.warning(
+                    f"Rate limit hit on attempt {attempt + 1}/{max_retries}: {e}"
+                )
                 if attempt < max_retries - 1:
                     await asyncio.sleep(delay)
                     delay *= 2  # Exponential backoff
@@ -318,7 +323,9 @@ async def edit_message_with_retry(
                 return False
             else:
                 # Other errors - log and retry
-                logger.debug(f"Error editing message (attempt {attempt + 1}/{max_retries}): {e}")
+                logger.debug(
+                    f"Error editing message (attempt {attempt + 1}/{max_retries}): {e}"
+                )
                 if attempt < max_retries - 1:
                     await asyncio.sleep(delay)
                     delay *= 2
@@ -378,14 +385,14 @@ def escape_for_telegram(text: str) -> str:
     "/telegram/test",
     tags=["Telegram"],
     summary="Telegram Test Endpoint",
-    description="Telegram router가 제대로 로드되었는지 테스트하는 엔드포인트입니다."
+    description="Telegram router가 제대로 로드되었는지 테스트하는 엔드포인트입니다.",
 )
 async def telegram_test():
     """Test endpoint to verify telegram router is working."""
     return {
         "status": "ok",
         "message": "Telegram router is working!",
-        "router": "telegram_router"
+        "router": "telegram_router",
     }
 
 
@@ -412,19 +419,20 @@ async def _process_update_impl(update: Update):
             logger.debug("Message has no text, photo, or document, skipping")
             return
 
-        logger.info(f"Processing message from chat_id={chat.id}, chat_type={chat.type}, user_id={user.id}, text_preview={text[:50] if text else 'photo/doc'}")
+        logger.info(
+            f"Processing message from chat_id={chat.id}, chat_type={chat.type}, user_id={user.id}, text_preview={text[:50] if text else 'photo/doc'}"
+        )
 
         # Lazy load bot username
         if BOT_USERNAME is None:
             if settings.telegram.bot_username:
-                 BOT_USERNAME = settings.telegram.bot_username
+                BOT_USERNAME = settings.telegram.bot_username
             elif bot:
                 try:
                     me = await bot.get_me()
                     BOT_USERNAME = me.username
                 except Exception as e:
                     print(f"Failed to fetch bot username: {e}")
-
 
         # 1. Ensure User exists
         # Email is required, so generate one
@@ -435,7 +443,7 @@ async def _process_update_impl(update: Update):
             telegram_id=user.id,
             username=user.username,
             first_name=user.first_name,
-            last_name=user.last_name
+            last_name=user.last_name,
         )
         logger.debug(f"User upserted: db_user_id={db_user.id}")
 
@@ -445,35 +453,52 @@ async def _process_update_impl(update: Update):
             telegram_chat_id=chat.id,
             name=chat.title or user.first_name,
             type=chat.type,
-            username=chat.username
+            username=chat.username,
         )
         logger.debug(f"Chat room upserted: db_chat_room_id={db_chat_room.id}")
 
         # 3. Handle Commands
         if text and (text.startswith("/start") or text.startswith("/help")):
-            help_text = """
-Hello! I am your AI assistant. You can use the following commands:
+            help_text = """👋 안녕하세요! AI 어시스턴트입니다.
 
-/help - Show this help message
-/summary - Summarize the conversation
-/persona - Show current persona
-/personas - List available personas
-/select_persona <id> - Select a persona
-/create_persona <json> - Create a new persona (e.g. /create_persona {"name": "Name", "content": "Prompt"})
-"""
-            await bot.send_message(chat_id=chat.id, text=help_text)
+📋 **대화 관리**
+• `/help` 또는 `/start` - 이 도움말 표시
+• `/summary` - 현재 대화 내용 요약
+
+🎭 **페르소나 (AI 성격)**
+• `/persona` - 현재 설정된 페르소나 확인
+• `/personas` - 사용 가능한 페르소나 목록
+• `/select_persona <id>` - 페르소나 변경 (예: `/select_persona 6d7ba44a-a3eb-432c-adaf-9b0b9330bc`)
+• `/create_persona {"name": "이름", "content": "프롬프트"}` - 새 페르소나 생성
+
+📚 **문서 관리 (RAG)**
+• 파일 전송 - PDF/TXT 파일 업로드 (최대 10MB)
+• `/files` - 업로드된 문서 목록 확인
+• `/delete_file <id>` - 문서 삭제
+
+💡 **팁**
+• 파일을 업로드하면 자동으로 분석되어 대화에 활용됩니다
+• 페르소나를 변경하면 AI의 응답 스타일이 바뀝니다
+• 언제든지 메시지를 보내서 대화를 시작하세요!
+
+---
+도움이 필요하시면 `/help`를 입력하세요."""
+            await bot.send_message(
+                chat_id=chat.id, text=help_text, parse_mode="Markdown"
+            )
             return
 
         if text and text.startswith("/create_persona"):
             # Expected format: /create_persona {"name": "...", "content": "..."}
             try:
                 import json
+
                 # Extract JSON part
                 json_str = text.replace("/create_persona", "", 1).strip()
                 if not json_str:
                     await bot.send_message(
                         chat_id=chat.id,
-                        text="Please provide persona data in JSON format.\nExample: /create_persona {\"name\": \"My Persona\", \"content\": \"You are a helpful assistant.\"}"
+                        text='Please provide persona data in JSON format.\nExample: /create_persona {"name": "My Persona", "content": "You are a helpful assistant."}',
                     )
                     return
 
@@ -484,7 +509,9 @@ Hello! I am your AI assistant. You can use the following commands:
                 is_public = data.get("is_public", False)
 
                 if not name or not content:
-                    await bot.send_message(chat_id=chat.id, text="Name and content are required.")
+                    await bot.send_message(
+                        chat_id=chat.id, text="Name and content are required."
+                    )
                     return
 
                 new_persona = await create_persona(
@@ -492,13 +519,18 @@ Hello! I am your AI assistant. You can use the following commands:
                     name=name,
                     content=content,
                     description=description,
-                    is_public=is_public
+                    is_public=is_public,
                 )
-                await bot.send_message(chat_id=chat.id, text=f"Persona created: {new_persona.name} (ID: {new_persona.id})")
+                await bot.send_message(
+                    chat_id=chat.id,
+                    text=f"Persona created: {new_persona.name} (ID: {new_persona.id})",
+                )
             except json.JSONDecodeError:
                 await bot.send_message(chat_id=chat.id, text="Invalid JSON format.")
             except Exception as e:
-                await bot.send_message(chat_id=chat.id, text=f"Error creating persona: {e}")
+                await bot.send_message(
+                    chat_id=chat.id, text=f"Error creating persona: {e}"
+                )
             return
 
         if text and text.startswith("/personas"):
@@ -510,17 +542,25 @@ Hello! I am your AI assistant. You can use the following commands:
                 else:
                     msg = "Available Personas:\n\n"
                     for p in user_personas:
-                        msg += f"- {p.name}\n  ID: `{p.id}`\n  {p.description or ''}\n\n"
+                        msg += (
+                            f"- {p.name}\n  ID: `{p.id}`\n  {p.description or ''}\n\n"
+                        )
                     msg += "Use `/select_persona <id>` to set."
-                    await bot.send_message(chat_id=chat.id, text=msg, parse_mode="Markdown")
+                    await bot.send_message(
+                        chat_id=chat.id, text=msg, parse_mode="Markdown"
+                    )
             except Exception as e:
-                await bot.send_message(chat_id=chat.id, text=f"Error fetching personas: {e}")
+                await bot.send_message(
+                    chat_id=chat.id, text=f"Error fetching personas: {e}"
+                )
             return
 
         if text and text.startswith("/select_persona"):
             parts = text.split()
             if len(parts) < 2:
-                await bot.send_message(chat_id=chat.id, text="Usage: /select_persona <id>")
+                await bot.send_message(
+                    chat_id=chat.id, text="Usage: /select_persona <id>"
+                )
                 return
 
             persona_id = parts[1]
@@ -529,11 +569,15 @@ Hello! I am your AI assistant. You can use the following commands:
                 persona = await get_persona_by_id(persona_id)
                 if persona:
                     await set_chat_room_persona(db_chat_room.id, persona.id)
-                    await bot.send_message(chat_id=chat.id, text=f"Persona set to: {persona.name}")
+                    await bot.send_message(
+                        chat_id=chat.id, text=f"Persona set to: {persona.name}"
+                    )
                 else:
                     await bot.send_message(chat_id=chat.id, text="Persona not found.")
             except Exception as e:
-                await bot.send_message(chat_id=chat.id, text=f"Error setting persona: {e}")
+                await bot.send_message(
+                    chat_id=chat.id, text=f"Error setting persona: {e}"
+                )
             return
 
         if text and text.startswith("/persona"):
@@ -541,21 +585,34 @@ Hello! I am your AI assistant. You can use the following commands:
             if db_chat_room.persona_id:
                 persona = await get_persona_by_id(db_chat_room.persona_id)
                 if persona:
-                    await bot.send_message(chat_id=chat.id, text=f"Current Persona: {persona.name}\n{persona.description or ''}")
+                    await bot.send_message(
+                        chat_id=chat.id,
+                        text=f"Current Persona: {persona.name}\n{persona.description or ''}",
+                    )
                 else:
-                    await bot.send_message(chat_id=chat.id, text="Current persona ID not found (maybe deleted).")
+                    await bot.send_message(
+                        chat_id=chat.id,
+                        text="Current persona ID not found (maybe deleted).",
+                    )
             else:
-                await bot.send_message(chat_id=chat.id, text="No persona set. Using default.")
+                await bot.send_message(
+                    chat_id=chat.id, text="No persona set. Using default."
+                )
             return
 
         if text and text.startswith("/summary"):
-            await bot.send_message(chat_id=chat.id, text="대화 내용을 요약하고 있습니다. 잠시만 기다려주세요...")
+            await bot.send_message(
+                chat_id=chat.id,
+                text="대화 내용을 요약하고 있습니다. 잠시만 기다려주세요...",
+            )
             try:
                 from telegram.helpers import escape_markdown
 
                 from services.conversation_service import summarize_chat_room
 
-                summary = await summarize_chat_room(chat_room_id=db_chat_room.id, user_id=db_user.id)
+                summary = await summarize_chat_room(
+                    chat_room_id=db_chat_room.id, user_id=db_user.id
+                )
                 # Use MarkdownV2 for better stability, escape the LLM output
                 safe_summary = escape_markdown(summary, version=2)
                 # Header "📋 대화 요약" in bold. Note: emojis don't strictly need escaping but good practice to be safe or just string format
@@ -564,11 +621,13 @@ Hello! I am your AI assistant. You can use the following commands:
                 await bot.send_message(
                     chat_id=chat.id,
                     text=f"*{header}*\n\n{safe_summary}",
-                    parse_mode="MarkdownV2"
+                    parse_mode="MarkdownV2",
                 )
             except Exception as e:
                 logger.error(f"Error executing summary command: {e}")
-                await bot.send_message(chat_id=chat.id, text="대화 요약 중 오류가 발생했습니다.")
+                await bot.send_message(
+                    chat_id=chat.id, text="대화 요약 중 오류가 발생했습니다."
+                )
             return
 
         if text and text.startswith("/files"):
@@ -583,7 +642,10 @@ Hello! I am your AI assistant. You can use the following commands:
 
                 if not docs:
                     logger.info("No docs returned from service.")
-                    await bot.send_message(chat_id=chat.id, text="No uploaded documents found in this room.")
+                    await bot.send_message(
+                        chat_id=chat.id,
+                        text="No uploaded documents found in this room.",
+                    )
                 else:
                     msg = "📚 *Uploaded Documents*:\n\n"
                     for doc in docs:
@@ -592,19 +654,32 @@ Hello! I am your AI assistant. You can use the following commands:
                         # Actually let's just use explicit replacements or safe text.
                         # Using MarkdownV2 is better but requires escaping everything.
                         # Let's stick to v1 but escape common chars.
-                        safe_filename = doc.filename.replace("_", "\\_").replace("*", "\\*").replace("`", "\\`").replace("[", "\\[")
+                        safe_filename = (
+                            doc.filename.replace("_", "\\_")
+                            .replace("*", "\\*")
+                            .replace("`", "\\`")
+                            .replace("[", "\\[")
+                        )
 
                         sub_text = f"Method: {doc.processing_method}, Size: {doc.size or 0} bytes"
                         # Escape sub_text chars too just in case
-                        sub_text = sub_text.replace("_", "\\_").replace("*", "\\*").replace("`", "\\`")
+                        sub_text = (
+                            sub_text.replace("_", "\\_")
+                            .replace("*", "\\*")
+                            .replace("`", "\\`")
+                        )
 
                         msg += f"📄 *{safe_filename}*\n   ID: `{doc.id}`\n   {sub_text}\n\n"
 
                     msg += "Use `/delete_file <id>` to remove."
-                    await bot.send_message(chat_id=chat.id, text=msg, parse_mode="Markdown")
+                    await bot.send_message(
+                        chat_id=chat.id, text=msg, parse_mode="Markdown"
+                    )
             except Exception as e:
                 logger.error(f"Error fetching files: {e}")
-                await bot.send_message(chat_id=chat.id, text="Failed to retrieve file list.")
+                await bot.send_message(
+                    chat_id=chat.id, text="Failed to retrieve file list."
+                )
             return
 
         if text and text.startswith("/delete_file"):
@@ -617,15 +692,25 @@ Hello! I am your AI assistant. You can use the following commands:
             doc_id = parts[1]
             try:
                 from services.knowledge_service import delete_document
+
                 success = await delete_document(doc_id, str(db_chat_room.id))
 
                 if success:
-                    await bot.send_message(chat_id=chat.id, text=f"✅ Document `{doc_id}` deleted successfully.", parse_mode="Markdown")
+                    await bot.send_message(
+                        chat_id=chat.id,
+                        text=f"✅ Document `{doc_id}` deleted successfully.",
+                        parse_mode="Markdown",
+                    )
                 else:
-                    await bot.send_message(chat_id=chat.id, text=f"❌ Failed to delete document. Check ID and Permissions.")
+                    await bot.send_message(
+                        chat_id=chat.id,
+                        text=f"❌ Failed to delete document. Check ID and Permissions.",
+                    )
             except Exception as e:
                 logger.error(f"Error deleting file: {e}")
-                await bot.send_message(chat_id=chat.id, text=f"Error deleting file: {e}")
+                await bot.send_message(
+                    chat_id=chat.id, text=f"Error deleting file: {e}"
+                )
             return
 
         # 4. Invoke Graph with Streaming
@@ -641,7 +726,7 @@ Hello! I am your AI assistant. You can use the following commands:
                 photo = message.photo[-1]
                 file_obj = await bot.get_file(photo.file_id)
                 image_bytes = await file_obj.download_as_bytearray()
-                b64_str = base64.b64encode(image_bytes).decode('utf-8')
+                b64_str = base64.b64encode(image_bytes).decode("utf-8")
                 image_data = f"data:image/jpeg;base64,{b64_str}"
 
                 # If no text caption, use default text
@@ -663,14 +748,21 @@ Hello! I am your AI assistant. You can use the following commands:
                 if doc.file_size and doc.file_size > settings.telegram.max_file_size:
                     await bot.send_message(
                         chat_id=chat.id,
-                        text=f"❌ File too large. Maximum size: 10MB (Your file: {doc.file_size / 1024 / 1024:.1f}MB)"
+                        text=f"❌ File too large. Maximum size: 10MB (Your file: {doc.file_size / 1024 / 1024:.1f}MB)",
                     )
                     return
 
                 # Check for supported types
-                if "pdf" in mime_type.lower() or "text/plain" in mime_type.lower() or file_name.lower().endswith(".pdf") or file_name.lower().endswith(".txt"):
-
-                    await bot.send_message(chat_id=chat.id, text=f"📥 Processing document: {file_name}...\nThis may take a moment.")
+                if (
+                    "pdf" in mime_type.lower()
+                    or "text/plain" in mime_type.lower()
+                    or file_name.lower().endswith(".pdf")
+                    or file_name.lower().endswith(".txt")
+                ):
+                    await bot.send_message(
+                        chat_id=chat.id,
+                        text=f"📥 Processing document: {file_name}...\nThis may take a moment.",
+                    )
 
                     file_obj = await bot.get_file(doc.file_id)
 
@@ -688,31 +780,41 @@ Hello! I am your AI assistant. You can use the following commands:
                     upload_file = UploadFile(file=byte_stream, filename=file_name)
 
                     from services.knowledge_service import process_uploaded_file
-                    success, msg = await process_uploaded_file(str(db_chat_room.id), str(db_user.id), upload_file)
+
+                    success, msg = await process_uploaded_file(
+                        str(db_chat_room.id), str(db_user.id), upload_file
+                    )
 
                     if success:
-                         await bot.send_message(chat_id=chat.id, text=f"✅ {msg}")
+                        await bot.send_message(chat_id=chat.id, text=f"✅ {msg}")
                     else:
-                         # Truncate error message if too long
-                         error_msg = str(msg)
-                         if len(error_msg) > 3000:
-                             error_msg = error_msg[:3000] + "... (truncated)"
-                         await bot.send_message(chat_id=chat.id, text=f"❌ Ingestion failed: {error_msg}")
+                        # Truncate error message if too long
+                        error_msg = str(msg)
+                        if len(error_msg) > 3000:
+                            error_msg = error_msg[:3000] + "... (truncated)"
+                        await bot.send_message(
+                            chat_id=chat.id, text=f"❌ Ingestion failed: {error_msg}"
+                        )
                     return
                 else:
-                    await bot.send_message(chat_id=chat.id, text="Unsupported file type. Please upload PDF or TXT files.")
+                    await bot.send_message(
+                        chat_id=chat.id,
+                        text="Unsupported file type. Please upload PDF or TXT files.",
+                    )
                     return
 
             except Exception as e:
                 logger.error(f"Error processing document: {e}", exc_info=True)
-                await bot.send_message(chat_id=chat.id, text="Failed to process document.")
+                await bot.send_message(
+                    chat_id=chat.id, text="Failed to process document."
+                )
                 return
 
         message_content = text
         if image_data:
             message_content = [
                 {"type": "text", "text": text},
-                {"type": "image_url", "image_url": {"url": image_data}}
+                {"type": "image_url", "image_url": {"url": image_data}},
             ]
 
         # For now, streaming doesn't support multimodal (image) due to complexity
@@ -722,7 +824,7 @@ Hello! I am your AI assistant. You can use the following commands:
                 "messages": [HumanMessage(content=message_content)],
                 "user_id": str(db_user.id),
                 "chat_room_id": str(db_chat_room.id),
-                "model_name": "gemini-1.5-flash"
+                "model_name": "gemini-1.5-flash",
             }
 
             try:
@@ -731,20 +833,29 @@ Hello! I am your AI assistant. You can use the following commands:
                 ai_response = response_messages[-1]
 
                 if isinstance(ai_response, AIMessage):
-                     await bot.send_message(chat_id=chat.id, text=ai_response.content)
+                    await bot.send_message(chat_id=chat.id, text=ai_response.content)
                 else:
-                     await bot.send_message(chat_id=chat.id, text="I didn't get a response.")
+                    await bot.send_message(
+                        chat_id=chat.id, text="I didn't get a response."
+                    )
 
             except Exception as e:
                 print(f"Error processing message: {e}")
                 if "429" in str(e) or "ResourceExhausted" in str(e):
-                     await bot.send_message(chat_id=chat.id, text="죄송합니다. API 사용량을 초과했습니다. 나중에 다시 시도해 주세요.")
+                    await bot.send_message(
+                        chat_id=chat.id,
+                        text="죄송합니다. API 사용량을 초과했습니다. 나중에 다시 시도해 주세요.",
+                    )
                 else:
-                     await bot.send_message(chat_id=chat.id, text="Sorry, I encountered an error.")
+                    await bot.send_message(
+                        chat_id=chat.id, text="Sorry, I encountered an error."
+                    )
             return
 
         # Streaming response for text-only messages
-        logger.info(f"Starting streaming response for user_id={db_user.id}, chat_room_id={db_chat_room.id}")
+        logger.info(
+            f"Starting streaming response for user_id={db_user.id}, chat_room_id={db_chat_room.id}"
+        )
         try:
             # Send typing indicator before starting stream
             await bot.send_chat_action(chat_id=chat.id, action="typing")
@@ -769,7 +880,7 @@ Hello! I am your AI assistant. You can use the following commands:
                 user_id=str(db_user.id),
                 chat_room_id=str(db_chat_room.id),
                 question=text,
-                user_name=user_name
+                user_name=user_name,
             ):
                 # Smart update logic to handle both deltas and snapshots
                 if chunk.startswith(full_response) and len(chunk) >= len(full_response):
@@ -791,21 +902,26 @@ Hello! I am your AI assistant. You can use the following commands:
                         # First, finalize the current last message (fill it up and remove "...")
                         prev_last_msg = sent_messages[-1]
                         prev_last_idx = len(sent_messages) - 1
-                        prev_text = full_response[prev_last_idx * MESSAGE_LIMIT : (prev_last_idx + 1) * MESSAGE_LIMIT]
+                        prev_text = full_response[
+                            prev_last_idx * MESSAGE_LIMIT : (prev_last_idx + 1)
+                            * MESSAGE_LIMIT
+                        ]
 
                         if sent_texts.get(prev_last_msg.message_id) != prev_text:
                             success = await edit_message_with_retry(
                                 bot=bot,
                                 chat_id=chat.id,
                                 message_id=prev_last_msg.message_id,
-                                text=prev_text
+                                text=prev_text,
                             )
                             if success:
                                 sent_texts[prev_last_msg.message_id] = prev_text
 
                         # Add new messages
                         while len(sent_messages) < num_needed:
-                            new_msg = await bot.send_message(chat_id=chat.id, text="...")
+                            new_msg = await bot.send_message(
+                                chat_id=chat.id, text="..."
+                            )
                             sent_messages.append(new_msg)
                             sent_texts[new_msg.message_id] = "..."
 
@@ -820,7 +936,7 @@ Hello! I am your AI assistant. You can use the following commands:
                             bot=bot,
                             chat_id=chat.id,
                             message_id=sent_messages[-1].message_id,
-                            text=new_text
+                            text=new_text,
                         )
                         if success:
                             sent_texts[sent_messages[-1].message_id] = new_text
@@ -828,13 +944,19 @@ Hello! I am your AI assistant. You can use the following commands:
                 except Exception as e:
                     logger.debug(f"Error in streaming update loop: {e}")
 
-            logger.info(f"Streaming complete: received {chunk_count} chunks, total length={len(full_response)}")
+            logger.info(
+                f"Streaming complete: received {chunk_count} chunks, total length={len(full_response)}"
+            )
 
             # Safety check: If response is too huge, truncate or warn
             if len(sent_messages) > 20:
-                 logger.warning(f"Too many messages generated ({len(sent_messages)}). Stopping updates.")
-                 await bot.send_message(chat_id=chat.id, text="[Response truncated due to length limit]")
-                 return
+                logger.warning(
+                    f"Too many messages generated ({len(sent_messages)}). Stopping updates."
+                )
+                await bot.send_message(
+                    chat_id=chat.id, text="[Response truncated due to length limit]"
+                )
+                return
 
             # Final update with retry logic
             try:
@@ -856,14 +978,14 @@ Hello! I am your AI assistant. You can use the following commands:
 
                     final_text = text_chunk
                     if i == len(sent_messages) - 1 and not final_text:
-                         final_text = "I didn't get a response."
+                        final_text = "I didn't get a response."
 
                     if sent_texts.get(msg.message_id) != final_text:
                         success = await edit_message_with_retry(
                             bot=bot,
                             chat_id=chat.id,
                             message_id=msg.message_id,
-                            text=final_text
+                            text=final_text,
                         )
                         if success:
                             sent_texts[msg.message_id] = final_text
@@ -872,13 +994,20 @@ Hello! I am your AI assistant. You can use the following commands:
                 logger.error(f"Final edit error: {e}")
 
         except Exception as e:
-            logger.error(f"Error processing message in streaming block: {e}", exc_info=True)
-            await bot.send_message(chat_id=chat.id, text="Sorry, I encountered an error.")
+            logger.error(
+                f"Error processing message in streaming block: {e}", exc_info=True
+            )
+            await bot.send_message(
+                chat_id=chat.id, text="Sorry, I encountered an error."
+            )
 
     except Exception as e:
         logger.error(f"Error in process_update: {e}", exc_info=True)
         try:
-            await bot.send_message(chat_id=chat.id, text="Sorry, I encountered an error processing your message.")
+            await bot.send_message(
+                chat_id=chat.id,
+                text="Sorry, I encountered an error processing your message.",
+            )
         except Exception as send_error:
             logger.error(f"Failed to send error message to user: {send_error}")
 
@@ -895,4 +1024,3 @@ async def process_update(update: Update):
     lock = get_user_lock(user.id)
     async with lock:
         await _process_update_impl(update)
-

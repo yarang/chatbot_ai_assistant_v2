@@ -3,11 +3,12 @@ from typing import List, Optional
 
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from sqlalchemy import and_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.expression import func
 
+from core.config import get_settings
 from core.database import get_async_session
 from core.logger import get_logger
 from models.knowledge_doc_model import KnowledgeDoc
@@ -15,33 +16,47 @@ from schemas import SearchFilters
 
 logger = get_logger(__name__)
 
+settings = get_settings()
 
-# Using OpenAI Embeddings as requested (Size 1536)
-# Ensure OPENAI_API_KEY is in .env
+
+# Using Google Generative AI Embeddings (Size 768)
+# Uses GEMINI_API_KEY from .env
 def get_embeddings_model():
-    return OpenAIEmbeddings(model="text-embedding-3-small")  # or text-embedding-ada-002
+    return GoogleGenerativeAIEmbeddings(
+        model="models/text-embedding-004", google_api_key=settings.gemini.api_key
+    )
+
 
 class RetrievalService:
     def __init__(self):
-        # Initialize LLM for query analysis (using GPT-4o keys from env)
-        self.llm = ChatOpenAI(model="gpt-4o", temperature=0)
+        # Initialize LLM for query analysis - explicitly using Gemini
+        self.llm = ChatGoogleGenerativeAI(
+            model=settings.gemini.model_name,
+            google_api_key=settings.gemini.api_key,
+            temperature=0,
+        )
         self.embeddings = get_embeddings_model()
-        
+
         # Setup Pydantic parser
         self.parser = PydanticOutputParser(pydantic_object=SearchFilters)
-        
+
         # Prompt for extracting filters
-        self.prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are an expert at extracting search filters from natural language queries.\n"
-                       "Extract the following fields using the provided schema:\n"
-                       "- query_text: The core keyword for search.\n"
-                       "- start_date/end_date: If time is mentioned (convert relative dates like 'yesterday' to YYYY-MM-DD).\n"
-                       "- source_type: If a source is mentioned (e.g., 'notion', 'slack').\n"
-                       "- tags: Any specific tags mentioned.\n"
-                       "\n{format_instructions}"),
-            ("user", "{query}")
-        ]).partial(format_instructions=self.parser.get_format_instructions())
-        
+        self.prompt = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    "You are an expert at extracting search filters from natural language queries.\n"
+                    "Extract the following fields using the provided schema:\n"
+                    "- query_text: The core keyword for search.\n"
+                    "- start_date/end_date: If time is mentioned (convert relative dates like 'yesterday' to YYYY-MM-DD).\n"
+                    "- source_type: If a source is mentioned (e.g., 'notion', 'slack').\n"
+                    "- tags: Any specific tags mentioned.\n"
+                    "\n{format_instructions}",
+                ),
+                ("user", "{query}"),
+            ]
+        ).partial(format_instructions=self.parser.get_format_instructions())
+
         self.chain = self.prompt | self.llm | self.parser
 
     async def extract_filters(self, query: str) -> SearchFilters:
@@ -64,10 +79,12 @@ class RetrievalService:
         """
         # 1. Extract Filters
         filters = await self.extract_filters(user_query)
-        logger.debug(f"Extracted filters: query={filters.query_text}, "
-                    f"source_type={filters.source_type}, "
-                    f"date_range={filters.start_date} to {filters.end_date}, "
-                    f"tags={filters.tags}")
+        logger.debug(
+            f"Extracted filters: query={filters.query_text}, "
+            f"source_type={filters.source_type}, "
+            f"date_range={filters.start_date} to {filters.end_date}, "
+            f"tags={filters.tags}"
+        )
 
         # 2. Get Query Embedding
         query_vector = await self.embeddings.aembed_query(filters.query_text)
@@ -76,24 +93,24 @@ class RetrievalService:
         stmt = select(KnowledgeDoc)
         conditions = []
 
-        # Filter: User ID (Example: assuming we have context, passed externally or via filter. 
+        # Filter: User ID (Example: assuming we have context, passed externally or via filter.
         # Here we assume the filter *could* contain it, or we rely on the caller to enforce tenancy.
-        # For this refactor, we'll focus on the extracted fields. 
+        # For this refactor, we'll focus on the extracted fields.
         # In a real app, user_id should be passed as an argument to this function for security.)
-        
+
         # Filter: Source Type
         if filters.source_type:
             conditions.append(KnowledgeDoc.source_type == filters.source_type)
-        
+
         # Filter: Date Range
         if filters.start_date:
             conditions.append(KnowledgeDoc.created_at >= filters.start_date)
         if filters.end_date:
             conditions.append(KnowledgeDoc.created_at <= filters.end_date)
-            
+
         # Filter: Tags (using Postgres Array overlap usually, or contains)
         if filters.tags:
-            # Assumes tags column is ARRAY(String). 
+            # Assumes tags column is ARRAY(String).
             # '&&' operator checks for overlap.
             conditions.append(KnowledgeDoc.tags.overlap(filters.tags))
 
@@ -104,15 +121,16 @@ class RetrievalService:
         # 4. Vector Similarity Search (using pgvector cosine distance: <=>)
         # Order by distance ASC
         stmt = stmt.order_by(KnowledgeDoc.embedding.cosine_distance(query_vector))
-        
+
         # Limit results
         stmt = stmt.limit(limit)
 
         # 5. Execute
         result = await session.execute(stmt)
         docs = result.scalars().all()
-        
+
         return docs
+
 
 # Standalone function for easy usage
 async def retrieve_with_filters(

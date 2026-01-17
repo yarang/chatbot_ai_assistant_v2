@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Export Personas - AI Assistant{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-6">
+    <h1 style="font-size: 1.5rem; font-weight: 700; margin: 0;">Export Personas</h1>
+    <a href="/personas" class="btn btn-secondary">Back to Personas</a>
+</div>
+
+<div style="max-width: 800px; margin: 0 auto;">
+    <div class="card">
+        <h2 style="font-size: 1.125rem; font-weight: 600; margin-bottom: var(--spacing-md);">Select Personas to Export</h2>
+
+        <form id="export-form" method="POST" action="/personas/export">
+            <div style="margin-bottom: var(--spacing-md);">
+                <label style="display: flex; align-items: center; gap: var(--spacing-sm); cursor: pointer; padding: var(--spacing-sm); background-color: var(--bg-secondary); border-radius: var(--radius-md);">
+                    <input type="checkbox" id="select-all" checked>
+                    <span style="font-weight: 500;">Select All</span>
+                </label>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--spacing-md); margin-bottom: var(--spacing-md); max-height: 400px; overflow-y: auto; padding: var(--spacing-md); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                {% for persona in personas %}
+                <label style="display: flex; align-items: start; gap: var(--spacing-sm); cursor: pointer; padding: var(--spacing-sm); border-radius: var(--radius-md); transition: background-color 0.2s;">
+                    <input type="checkbox" name="persona_ids" value="{{ persona.id }}" checked class="persona-checkbox">
+                    <div style="flex: 1;">
+                        <div style="font-weight: 500;">{{ persona.name }}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: var(--spacing-xs);">
+                            {% if persona.category %}{{ persona.category }} • {% endif %}{{ persona.created_at.strftime('%Y-%m-%d') }}
+                        </div>
+                        {% if persona.tags %}
+                        <div style="display: flex; flex-wrap: wrap; gap: var(--spacing-xs); margin-top: var(--spacing-xs);">
+                            {% for tag in persona.tags[:3] %}
+                            <span style="font-size: 0.625rem; padding: 0.125rem 0.375rem; background-color: var(--bg-secondary); border-radius: var(--radius-sm);">
+                                {{ tag }}
+                            </span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </label>
+                {% else %}
+                <div style="grid-column: 1 / -1; text-align: center; padding: var(--spacing-xl); color: var(--text-muted);">
+                    No personas to export. <a href="/personas/new" style="color: var(--primary-color);">Create your first persona</a>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: var(--spacing-sm);">
+                <a href="/personas" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary" {% if not personas %}disabled{% endif %}>
+                    Export Selected <span id="export-count">({{ personas|length }})</span>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card" style="margin-top: var(--spacing-md);">
+        <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: var(--spacing-sm);">How to Import</h3>
+        <ol style="margin: 0; padding-left: var(--spacing-lg); font-size: 0.875rem; color: var(--text-muted);">
+            <li style="margin-bottom: var(--spacing-xs);">Select personas from the list above and click "Export Selected"</li>
+            <li style="margin-bottom: var(--spacing-xs);">Save the downloaded JSON file</li>
+            <li style="margin-bottom: var(--spacing-xs);">On the target system, go to Personas page</li>
+            <li style="margin-bottom: var(--spacing-xs);">Click the "Import" button and paste the JSON content</li>
+        </ol>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAll = document.getElementById('select-all');
+    const personaCheckboxes = document.querySelectorAll('.persona-checkbox');
+    const exportForm = document.getElementById('export-form');
+    const exportCount = document.getElementById('export-count');
+
+    // Update count display
+    function updateExportCount() {
+        const checked = Array.from(personaCheckboxes).filter(cb => cb.checked);
+        exportCount.textContent = `(${checked.length})`;
+    }
+
+    // Select all functionality
+    selectAll.addEventListener('change', function() {
+        personaCheckboxes.forEach(cb => cb.checked = selectAll.checked);
+        updateExportCount();
+    });
+
+    // Update select all checkbox when individual checkboxes change
+    personaCheckboxes.forEach(cb => {
+        cb.addEventListener('change', function() {
+            const allChecked = Array.from(personaCheckboxes).every(c => c.checked);
+            selectAll.checked = allChecked;
+            updateExportCount();
+        });
+    });
+
+    // Visual hover effect for labels
+    const labels = exportForm.querySelectorAll('label');
+    labels.forEach(label => {
+        label.addEventListener('mouseenter', function() {
+            if (!label.querySelector('input[type="checkbox"]')) return;
+            this.style.backgroundColor = 'var(--bg-hover)';
+        });
+        label.addEventListener('mouseleave', function() {
+            if (!label.querySelector('input[type="checkbox"]')) return;
+            this.style.backgroundColor = '';
+        });
+    });
+
+    // Prevent form submission if no personas selected
+    exportForm.addEventListener('submit', function(e) {
+        const checked = Array.from(personaCheckboxes).filter(cb => cb.checked);
+        if (checked.length === 0) {
+            e.preventDefault();
+            alert('Please select at least one persona to export.');
+        }
+    });
+});
+</script>
+{% endblock %}

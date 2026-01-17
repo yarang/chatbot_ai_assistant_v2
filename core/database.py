@@ -10,6 +10,7 @@ from core.config import get_settings
 
 class Base(DeclarativeBase):
     """SQLAlchemy Base 클래스"""
+
     pass
 
 
@@ -21,21 +22,21 @@ _async_session_maker = None
 def get_database_url(async_driver: bool = True) -> str:
     """
     데이터베이스 URL 생성
-    
+
     Args:
         async_driver: True이면 asyncpg (비동기), False이면 psycopg (동기) 드라이버 사용
     """
     settings = get_settings()
     db = settings.database
-    
+
     user = db.user
     password = db.password
     host = db.host
     port = db.port
     database = db.name
-    
+
     driver = "postgresql+asyncpg" if async_driver else "postgresql+psycopg"
-    
+
     if password:
         return f"{driver}://{user}:{password}@{host}:{port}/{database}"
     else:
@@ -52,6 +53,18 @@ def get_engine():
             echo=False,
             pool_pre_ping=True,
             pool_recycle=300,
+            # 성능 최적화 설정
+            pool_size=20,  # 기본 5 → 20 (동시 연결 수)
+            max_overflow=40,  # 기본 10 → 40 (최대 추가 연결)
+            pool_timeout=30,  # 연결 대기 시간 (30초)
+            pool_use_lifo=True,  # 최근 연결 우선 사용 (연결 재사용율 향상)
+            connect_args={
+                "command_timeout": 10,
+                "server_settings": {
+                    "jit": "off",  # PostgreSQL JIT 비활성화 (단순 쿼리 성능 향상)
+                    "application_name": "chatbot_ai",
+                },
+            },
         )
     return _engine
 
@@ -61,9 +74,7 @@ def get_async_session_maker():
     global _async_session_maker
     if _async_session_maker is None:
         _async_session_maker = async_sessionmaker(
-            get_engine(),
-            class_=AsyncSession,
-            expire_on_commit=False
+            get_engine(), class_=AsyncSession, expire_on_commit=False
         )
     return _async_session_maker
 
@@ -86,7 +97,7 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
 async def init_db():
     """데이터베이스 초기화 (테이블 생성)"""
     engine = get_engine()
-    
+
     async with engine.begin() as conn:
         # 존재하는 테이블 목록 조회
         result = await conn.execute(
@@ -97,13 +108,13 @@ async def init_db():
             """)
         )
         existing_tables = {row[0] for row in result.fetchall()}
-        
+
         # 테이블을 생성 순서대로 정렬
         sorted_tables = sorted(
             Base.metadata.tables.values(),
-            key=lambda t: t.info.get("creation_order", 999)
+            key=lambda t: t.info.get("creation_order", 999),
         )
-        
+
         # 누락된 테이블만 생성
         for table in sorted_tables:
             if table.name in existing_tables:
@@ -146,4 +157,3 @@ async def init_db():
 
             await conn.run_sync(_create)
             print(f"테이블 생성됨: {table.name}")
-

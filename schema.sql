@@ -196,3 +196,21 @@ CREATE TABLE IF NOT EXISTS knowledge_docs (
 -- knowledge_docs 테이블 인덱스
 CREATE INDEX IF NOT EXISTS idx_knowledge_docs_chat_room_id ON knowledge_docs(chat_room_id);
 
+-- ============================================
+-- MIGRATION: Add category and tags to personas
+-- Run this to add new columns to existing personas table
+-- Date: 2026-01-15
+-- ============================================
+
+-- Add category column
+ALTER TABLE personas ADD COLUMN IF NOT EXISTS category VARCHAR;
+
+-- Add tags column (PostgreSQL array type)
+ALTER TABLE personas ADD COLUMN IF NOT EXISTS tags VARCHAR[];
+
+-- Create index for category filtering
+CREATE INDEX IF NOT EXISTS idx_personas_category ON personas(category);
+
+-- Create GIN index for efficient tag searching
+CREATE INDEX IF NOT EXISTS idx_personas_tags ON personas USING GIN(tags);
+

@@ -5,8 +5,44 @@
 {% block content %}
 <div class="flex-between mb-6">
     <h1 style="font-size: 1.5rem; font-weight: 700; margin: 0;">Personas</h1>
-    <a href="/personas/new" class="btn btn-primary">Create New Persona</a>
+    <div style="display: flex; gap: var(--spacing-sm);">
+        <a href="/personas/export" class="btn btn-secondary">Export</a>
+        <a href="/personas/new" class="btn btn-primary">Create New Persona</a>
+    </div>
 </div>
+
+<!-- Bulk Action Bar (hidden by default) -->
+<div id="bulk-actions" style="display: none; margin-bottom: var(--spacing-md); padding: var(--spacing-md); background-color: var(--bg-secondary); border-radius: var(--radius-md); align-items: center; gap: var(--spacing-md);">
+    <span style="font-size: 0.875rem; font-weight: 500;">
+        <span id="selected-count">0</span> personas selected
+    </span>
+    <div style="display: flex; gap: var(--spacing-xs); margin-left: auto;">
+        <button id="bulk-make-public" class="btn btn-secondary btn-sm">Make Public</button>
+        <button id="bulk-make-private" class="btn btn-secondary btn-sm">Make Private</button>
+        <button id="bulk-delete" class="btn btn-danger btn-sm">Delete</button>
+        <button id="bulk-cancel" class="btn btn-secondary btn-sm">Cancel</button>
+    </div>
+</div>
+
+<!-- Import Form -->
+<form id="import-form" method="POST" action="/personas/import" style="display: none; margin-bottom: var(--spacing-md); padding: var(--spacing-md); background-color: var(--bg-secondary); border-radius: var(--radius-md);">
+    <div style="display: flex; align-items: center; gap: var(--spacing-md);">
+        <div style="flex: 1;">
+            <label for="personas-json" style="font-size: 0.875rem; font-weight: 500; display: block; margin-bottom: var(--spacing-xs);">Import Personas (JSON)</label>
+            <textarea id="personas-json" name="personas_json" rows="3" placeholder='[{"name": "Persona Name", "content": "System prompt...", ...}]' style="width: 100%; padding: var(--spacing-sm); border: 1px solid var(--border-color); border-radius: var(--radius-md); font-family: monospace; font-size: 0.875rem;"></textarea>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: var(--spacing-xs); align-items: start;">
+            <label style="display: flex; align-items: center; gap: var(--spacing-xs); font-size: 0.875rem;">
+                <input type="checkbox" name="overwrite_names" value="true">
+                Overwrite existing names
+            </label>
+            <div style="display: flex; gap: var(--spacing-xs);">
+                <button type="submit" class="btn btn-primary btn-sm">Import</button>
+                <button type="button" id="cancel-import" class="btn btn-secondary btn-sm">Cancel</button>
+            </div>
+        </div>
+    </div>
+</form>
 
 <!-- Search and Filter Bar -->
 <div class="filter-bar">
@@ -20,6 +56,8 @@
             aria-label="Search personas"
         >
     </div>
+
+    <button id="toggle-import" class="btn btn-secondary btn-sm" style="display: none;">Import</button>
 
     <div class="filter-group">
         <span class="filter-label">Sort by:</span>
@@ -61,30 +99,56 @@
     <div class="card card-interactive persona-card"
          data-name="{{ persona.name|lower }}"
          data-description="{{ (persona.description or '')|lower }}"
+         data-category="{{ (persona.category or '')|lower }}"
+         data-tags="{{ ((persona.tags|join(', ')) if persona.tags else '')|lower }}"
          data-created="{{ persona.created_at.isoformat() }}"
-         data-public="{{ 'true' if persona.is_public else 'false' }}">
-        <div class="flex-between mb-4">
-            <h2 style="font-size: 1.25rem; font-weight: 600; margin: 0;">
-                <a href="/personas/{{ persona.id }}" style="text-decoration: none; color: inherit;">{{ persona.name }}</a>
-            </h2>
+         data-public="{{ 'true' if persona.is_public else 'false' }}"
+         data-id="{{ persona.id }}">
+        {% if active_tab == 'my' %}
+        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: var(--spacing-sm);">
+            <input type="checkbox" class="persona-select" data-id="{{ persona.id }}" aria-label="Select {{ persona.name }}">
             {% if persona.is_public %}
             <span class="badge badge-public">Public</span>
             {% else %}
             <span class="badge badge-private">Private</span>
             {% endif %}
         </div>
+        {% endif %}
+        <h2 style="font-size: 1.25rem; font-weight: 600; margin: 0 0 var(--spacing-sm) 0;">
+            <a href="/personas/{{ persona.id }}" style="text-decoration: none; color: inherit;">{{ persona.name }}</a>
+        </h2>
+        {% if persona.category %}
+        <p style="font-size: 0.75rem; color: var(--primary-color); font-weight: 500; margin-bottom: var(--spacing-xs);">
+            {{ persona.category }}
+        </p>
+        {% endif %}
         <p style="color: var(--text-muted); margin-bottom: 1rem; height: 3rem; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
             {{ persona.description or 'No description' }}
         </p>
+        {% if persona.tags %}
+        <div style="display: flex; flex-wrap: wrap; gap: var(--spacing-xs); margin-bottom: var(--spacing-sm);">
+            {% for tag in persona.tags[:3] %}
+            <span style="font-size: 0.75rem; padding: 0.125rem 0.5rem; background-color: var(--bg-secondary); border-radius: var(--radius-sm); color: var(--text-muted);">
+                {{ tag }}
+            </span>
+            {% endfor %}
+            {% if persona.tags|length > 3 %}
+            <span style="font-size: 0.75rem; color: var(--text-muted);">+{{ persona.tags|length - 3 }}</span>
+            {% endif %}
+        </div>
+        {% endif %}
         <p style="font-size: 0.75rem; color: var(--text-light); margin-bottom: 1rem;">
             Created {{ persona.created_at.strftime('%Y-%m-%d') }}
         </p>
-        <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
-            <a href="/personas/{{ persona.id }}" class="btn btn-secondary">View</a>
+        <div style="display: flex; justify-content: flex-end; gap: 0.5rem; flex-wrap: wrap;">
+            <a href="/personas/{{ persona.id }}" class="btn btn-secondary btn-sm">View</a>
             {% if active_tab == 'my' %}
-            <a href="/personas/{{ persona.id }}/edit" class="btn btn-secondary">Edit</a>
+            <form method="POST" action="/personas/{{ persona.id }}/duplicate" style="display: inline;">
+                <button type="submit" class="btn btn-secondary btn-sm" aria-label="Duplicate persona {{ persona.name }}">Duplicate</button>
+            </form>
+            <a href="/personas/{{ persona.id }}/edit" class="btn btn-secondary btn-sm">Edit</a>
             <form method="POST" action="/personas/{{ persona.id }}/delete" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this persona?');">
-                <button type="submit" class="btn btn-danger" aria-label="Delete persona {{ persona.name }}">Delete</button>
+                <button type="submit" class="btn btn-danger btn-sm" aria-label="Delete persona {{ persona.name }}">Delete</button>
             </form>
             {% endif %}
         </div>
@@ -130,6 +194,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const noResults = document.getElementById('no-results');
     const clearFilters = document.getElementById('clear-filters');
 
+    // Bulk action elements
+    const bulkActions = document.getElementById('bulk-actions');
+    const selectedCount = document.getElementById('selected-count');
+    const bulkMakePublic = document.getElementById('bulk-make-public');
+    const bulkMakePrivate = document.getElementById('bulk-make-private');
+    const bulkDelete = document.getElementById('bulk-delete');
+    const bulkCancel = document.getElementById('bulk-cancel');
+    const personaSelects = document.querySelectorAll('.persona-select');
+
+    // Import form elements
+    const toggleImport = document.getElementById('toggle-import');
+    const importForm = document.getElementById('import-form');
+    const cancelImport = document.getElementById('cancel-import');
+
     // Check initial checkbox state based on active tab
     const activeTab = '{{ active_tab }}';
     if (activeTab === 'my') {
@@ -138,6 +216,85 @@ document.addEventListener('DOMContentLoaded', function() {
     } else if (activeTab === 'public') {
         filterPublic.checked = true;
         filterPrivate.checked = false;
+    }
+
+    // Bulk selection handling
+    function updateBulkSelection() {
+        const selected = Array.from(personaSelects).filter(cb => cb.checked);
+        const count = selected.length;
+
+        if (count > 0) {
+            selectedCount.textContent = count;
+            bulkActions.style.display = 'flex';
+        } else {
+            bulkActions.style.display = 'none';
+        }
+    }
+
+    personaSelects.forEach(checkbox => {
+        checkbox.addEventListener('change', updateBulkSelection);
+    });
+
+    // Bulk action handlers
+    bulkCancel.addEventListener('click', function() {
+        personaSelects.forEach(cb => cb.checked = false);
+        updateBulkSelection();
+    });
+
+    bulkMakePublic.addEventListener('click', function() {
+        performBulkAction('make_public');
+    });
+
+    bulkMakePrivate.addEventListener('click', function() {
+        performBulkAction('make_private');
+    });
+
+    bulkDelete.addEventListener('click', function() {
+        if (confirm('Are you sure you want to delete the selected personas?')) {
+            performBulkAction('delete');
+        }
+    });
+
+    function performBulkAction(action) {
+        const selected = Array.from(personaSelects).filter(cb => cb.checked);
+        const personaIds = selected.map(cb => cb.dataset.id);
+
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/personas/bulk';
+
+        const idsInput = document.createElement('input');
+        idsInput.type = 'hidden';
+        idsInput.name = 'persona_ids';
+        idsInput.value = personaIds.join(',');
+        form.appendChild(idsInput);
+
+        const actionInput = document.createElement('input');
+        actionInput.type = 'hidden';
+        actionInput.name = 'action';
+        actionInput.value = action;
+        form.appendChild(actionInput);
+
+        document.body.appendChild(form);
+        form.submit();
+    }
+
+    // Import form toggle
+    if (toggleImport && importForm) {
+        toggleImport.addEventListener('click', function() {
+            if (importForm.style.display === 'none') {
+                importForm.style.display = 'block';
+                toggleImport.textContent = 'Cancel';
+            } else {
+                importForm.style.display = 'none';
+                toggleImport.textContent = 'Import';
+            }
+        });
+
+        cancelImport.addEventListener('click', function() {
+            importForm.style.display = 'none';
+            if (toggleImport) toggleImport.textContent = 'Import';
+        });
     }
 
     // Filter function
@@ -152,10 +309,15 @@ document.addEventListener('DOMContentLoaded', function() {
         cards.forEach(card => {
             const name = card.dataset.name;
             const description = card.dataset.description;
+            const category = card.dataset.category || '';
+            const tags = card.dataset.tags || '';
             const isPublic = card.dataset.public === 'true';
 
-            // Search filter
-            const matchesSearch = name.includes(searchTerm) || description.includes(searchTerm);
+            // Search filter (name, description, category, tags)
+            const matchesSearch = name.includes(searchTerm) ||
+                                  description.includes(searchTerm) ||
+                                  category.includes(searchTerm) ||
+                                  tags.includes(searchTerm);
 
             // Visibility filter
             const matchesVisibility = (isPublic && showPublic) || (!isPublic && showPrivate);

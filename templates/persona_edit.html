@@ -31,6 +31,22 @@
             </div>
 
             <div class="form-group">
+                <label for="category">Category</label>
+                <input id="category" name="category" type="text" placeholder="e.g., Writing, Coding, Assistant" value="{{ persona.category if persona else '' }}" maxlength="100">
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: var(--spacing-xs);">
+                    Optional category for organizing personas
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="tags">Tags</label>
+                <input id="tags" name="tags" type="text" placeholder="e.g., creative, technical, friendly" value="{{ persona.tags|join(', ') if persona and persona.tags else '' }}">
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: var(--spacing-xs);">
+                    Comma-separated tags for better organization
+                </div>
+            </div>
+
+            <div class="form-group">
                 <label for="template-select">Start from Template</label>
                 <select id="template-select" aria-label="Choose a persona template">
                     <option value="">-- Select a template --</option>
@@ -84,9 +100,19 @@
                         {% if persona and persona.is_public %}Public{% else %}Private{% endif %}
                     </span>
                 </div>
-                <p id="preview-description" style="color: var(--text-muted); font-size: 0.875rem;">
+                <p id="preview-description" style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: var(--spacing-sm);">
                     {{ persona.description if persona else 'No description provided' }}
                 </p>
+                {% set category_display = 'block' if persona and persona.category else 'none' %}
+                <div id="preview-category-container" style="display: {{ category_display }}; margin-bottom: var(--spacing-sm);">
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">Category: </span>
+                    <span id="preview-category" style="font-size: 0.875rem; font-weight: 500;">{{ persona.category if persona else '' }}</span>
+                </div>
+                {% set tags_display = 'block' if persona and persona.tags else 'none' %}
+                <div id="preview-tags-container" style="display: {{ tags_display }}; margin-bottom: var(--spacing-sm);">
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">Tags: </span>
+                    <span id="preview-tags" style="font-size: 0.875rem;">{% if persona and persona.tags %}{{ persona.tags|join(', ') }}{% endif %}</span>
+                </div>
             </div>
 
             <div style="margin-bottom: var(--spacing-sm);">
@@ -190,6 +216,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('personaForm');
     const nameInput = document.getElementById('name');
     const descriptionInput = document.getElementById('description');
+    const categoryInput = document.getElementById('category');
+    const tagsInput = document.getElementById('tags');
     const contentInput = document.getElementById('content');
     const templateSelect = document.getElementById('template-select');
     const isPublicCheckbox = document.getElementById('is_public');
@@ -199,6 +227,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Preview elements
     const previewName = document.getElementById('preview-name');
     const previewDescription = document.getElementById('preview-description');
+    const previewCategory = document.getElementById('preview-category');
+    const previewCategoryContainer = document.getElementById('preview-category-container');
+    const previewTags = document.getElementById('preview-tags');
+    const previewTagsContainer = document.getElementById('preview-tags-container');
     const previewContent = document.getElementById('preview-content');
     const previewBadge = document.getElementById('preview-badge');
 
@@ -215,6 +247,22 @@ document.addEventListener('DOMContentLoaded', function() {
         previewName.textContent = nameInput.value || 'Persona Name';
         previewDescription.textContent = descriptionInput.value || 'No description provided';
         previewContent.textContent = contentInput.value || 'No prompt defined yet';
+
+        // Update category preview
+        if (categoryInput.value) {
+            previewCategory.textContent = categoryInput.value;
+            previewCategoryContainer.style.display = 'block';
+        } else {
+            previewCategoryContainer.style.display = 'none';
+        }
+
+        // Update tags preview
+        if (tagsInput.value) {
+            previewTags.textContent = tagsInput.value;
+            previewTagsContainer.style.display = 'block';
+        } else {
+            previewTagsContainer.style.display = 'none';
+        }
 
         if (isPublicCheckbox.checked) {
             previewBadge.textContent = 'Public';
@@ -255,6 +303,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const formData = {
             name: nameInput.value,
             description: descriptionInput.value,
+            category: categoryInput.value,
+            tags: tagsInput.value,
             content: contentInput.value,
             is_public: isPublicCheckbox.checked
         };
@@ -281,6 +331,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = JSON.parse(draft);
             nameInput.value = data.name || '';
             descriptionInput.value = data.description || '';
+            categoryInput.value = data.category || '';
+            tagsInput.value = data.tags || '';
             contentInput.value = data.content || '';
             isPublicCheckbox.checked = data.is_public || false;
             updatePreview();
@@ -315,6 +367,16 @@ document.addEventListener('DOMContentLoaded', function() {
     descriptionInput.addEventListener('input', function() {
         updatePreview();
         updateCounters();
+        scheduleAutoSave();
+    });
+
+    categoryInput.addEventListener('input', function() {
+        updatePreview();
+        scheduleAutoSave();
+    });
+
+    tagsInput.addEventListener('input', function() {
+        updatePreview();
         scheduleAutoSave();
     });
 

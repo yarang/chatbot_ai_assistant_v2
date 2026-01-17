@@ -6,11 +6,16 @@ from pydantic import BaseModel
 from core.security import get_current_user_required
 from repository.chat_room_repository import set_chat_room_persona
 from repository.persona_repository import (
+    bulk_delete_personas,
+    bulk_toggle_public,
     create_persona,
     delete_persona,
+    duplicate_persona,
+    export_personas,
     get_persona_by_id,
     get_public_personas,
     get_user_personas,
+    import_personas,
     update_persona,
 )
 
@@ -22,6 +27,8 @@ class PersonaCreate(BaseModel):
     name: str
     content: str
     description: Optional[str] = None
+    category: Optional[str] = None
+    tags: Optional[List[str]] = None
     is_public: bool = False
 
 
@@ -29,6 +36,8 @@ class PersonaUpdate(BaseModel):
     name: Optional[str] = None
     content: Optional[str] = None
     description: Optional[str] = None
+    category: Optional[str] = None
+    tags: Optional[List[str]] = None
     is_public: Optional[bool] = None
 
 
@@ -38,6 +47,8 @@ class PersonaResponse(BaseModel):
     name: str
     content: str
     description: Optional[str]
+    category: Optional[str]
+    tags: Optional[List[str]]
     is_public: bool
     created_at: str
     updated_at: str
@@ -65,6 +76,26 @@ class EvaluationResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class BulkOperationRequest(BaseModel):
+    persona_ids: List[str]
+    action: str  # 'delete', 'make_public', 'make_private'
+
+
+class BulkOperationResponse(BaseModel):
+    success: int
+    failed: int
+    errors: List[str]
+
+
+class ExportRequest(BaseModel):
+    persona_ids: List[str]
+
+
+class ImportRequest(BaseModel):
+    personas: List[dict]
+    overwrite_names: bool = False
 
 
 @router.post("/", response_model=PersonaResponse)
@@ -104,6 +135,8 @@ async def create_persona_endpoint(
             name=persona.name,
             content=persona.content,
             description=persona.description,
+            category=persona.category,
+            tags=persona.tags,
             is_public=persona.is_public,
         )
         return PersonaResponse(
@@ -112,6 +145,8 @@ async def create_persona_endpoint(
             name=created.name,
             content=created.content,
             description=created.description,
+            category=created.category,
+            tags=created.tags,
             is_public=created.is_public,
             created_at=created.created_at.isoformat(),
             updated_at=created.updated_at.isoformat(),
@@ -138,20 +173,22 @@ async def get_persona_endpoint(
         HTTPException: If the persona is not found.
     """
     from repository.user_repository import get_user_by_telegram_id
-    
+
     db_user = await get_user_by_telegram_id(int(current_user["id"]))
     user_uuid = db_user.id if db_user else None
 
     persona = await get_persona_by_id(persona_id=persona_id, user_id=user_uuid)
     if not persona:
         raise HTTPException(status_code=404, detail="Persona not found")
-    
+
     return PersonaResponse(
         id=str(persona.id),
         user_id=str(persona.user_id),
         name=persona.name,
         content=persona.content,
         description=persona.description,
+        category=persona.category,
+        tags=persona.tags,
         is_public=persona.is_public,
         created_at=persona.created_at.isoformat(),
         updated_at=persona.updated_at.isoformat(),
@@ -171,7 +208,7 @@ async def get_my_personas_endpoint(
         List[PersonaResponse]: A list of personas owned by the user.
     """
     from repository.user_repository import get_user_by_telegram_id
-    
+
     db_user = await get_user_by_telegram_id(int(current_user["id"]))
     if not db_user:
         return []
@@ -185,6 +222,8 @@ async def get_my_personas_endpoint(
             name=p.name,
             content=p.content,
             description=p.description,
+            category=p.category,
+            tags=p.tags,
             is_public=p.is_public,
             created_at=p.created_at.isoformat(),
             updated_at=p.updated_at.isoformat(),
@@ -203,10 +242,10 @@ async def update_persona_endpoint(
     Persona 수정 (소유자만 가능)
     """
     from repository.user_repository import get_user_by_telegram_id
-    
+
     db_user = await get_user_by_telegram_id(int(current_user["id"]))
     if not db_user:
-         raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="User not found")
     user_uuid = db_user.id
 
     updated = await update_persona(
@@ -215,18 +254,24 @@ async def update_persona_endpoint(
         name=persona_update.name,
         content=persona_update.content,
         description=persona_update.description,
+        category=persona_update.category,
+        tags=persona_update.tags,
         is_public=persona_update.is_public,
     )
-    
+
     if not updated:
-        raise HTTPException(status_code=404, detail="Persona not found or permission denied")
-    
+        raise HTTPException(
+            status_code=404, detail="Persona not found or permission denied"
+        )
+
     return PersonaResponse(
         id=str(updated.id),
         user_id=str(updated.user_id),
         name=updated.name,
         content=updated.content,
         description=updated.description,
+        category=updated.category,
+        tags=updated.tags,
         is_public=updated.is_public,
         created_at=updated.created_at.isoformat(),
         updated_at=updated.updated_at.isoformat(),
@@ -242,16 +287,18 @@ async def delete_persona_endpoint(
     Persona 삭제 (소유자만 가능)
     """
     from repository.user_repository import get_user_by_telegram_id
-    
+
     db_user = await get_user_by_telegram_id(int(current_user["id"]))
     if not db_user:
-         raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="User not found")
     user_uuid = db_user.id
 
     success = await delete_persona(persona_id=persona_id, user_id=user_uuid)
     if not success:
-        raise HTTPException(status_code=404, detail="Persona not found or permission denied")
-    
+        raise HTTPException(
+            status_code=404, detail="Persona not found or permission denied"
+        )
+
     return {"message": "Persona deleted successfully"}
 
 
@@ -268,6 +315,8 @@ async def get_public_personas_endpoint(limit: int = 50):
             name=p.name,
             content=p.content,
             description=p.description,
+            category=p.category,
+            tags=p.tags,
             is_public=p.is_public,
             created_at=p.created_at.isoformat(),
             updated_at=p.updated_at.isoformat(),
@@ -305,7 +354,7 @@ async def set_chat_room_persona_endpoint(
 
     if chat_room.type == "private":
         # Private chat: telegram_chat_id should match user's telegram_id
-        is_owner = (chat_room.telegram_chat_id == user_telegram_id)
+        is_owner = chat_room.telegram_chat_id == user_telegram_id
     else:
         # Group/Channel: check if user is admin or has participated
         if user_telegram_id in settings.admin_ids:
@@ -314,6 +363,7 @@ async def set_chat_room_persona_endpoint(
             # Check if user has participated in this chat room
             from repository.chat_room_repository import get_chat_room_participants
             from repository.user_repository import get_user_by_telegram_id
+
             db_user = await get_user_by_telegram_id(user_telegram_id)
             if db_user:
                 participants = await get_chat_room_participants(chat_room_id)
@@ -321,7 +371,9 @@ async def set_chat_room_persona_endpoint(
                     is_owner = True
 
     if not is_owner:
-        raise HTTPException(status_code=403, detail="You don't have permission to modify this chat room")
+        raise HTTPException(
+            status_code=403, detail="You don't have permission to modify this chat room"
+        )
 
     # Set persona
     chat_room = await set_chat_room_persona(
@@ -353,13 +405,13 @@ async def create_evaluation_endpoint(
     db_user = await get_user_by_telegram_id(int(current_user["id"]))
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
-        
+
     try:
         created = await create_evaluation(
             persona_id=uuid.UUID(persona_id),
             user_id=db_user.id,
             score=evaluation.score,
-            comment=evaluation.comment
+            comment=evaluation.comment,
         )
         return EvaluationResponse(
             id=str(created.id),
@@ -367,7 +419,7 @@ async def create_evaluation_endpoint(
             user_id=str(created.user_id),
             score=created.score,
             comment=created.comment,
-            created_at=created.created_at.isoformat()
+            created_at=created.created_at.isoformat(),
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -392,8 +444,121 @@ async def get_evaluations_endpoint(
             user_id=str(e.user_id),
             score=e.score,
             comment=e.comment,
-            created_at=e.created_at.isoformat()
+            created_at=e.created_at.isoformat(),
         )
         for e in evaluations
     ]
 
+
+@router.post("/{persona_id}/duplicate", response_model=PersonaResponse)
+async def duplicate_persona_endpoint(
+    persona_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user_required),
+):
+    """Persona 복제"""
+    from repository.user_repository import get_user_by_telegram_id
+
+    db_user = await get_user_by_telegram_id(int(current_user["id"]))
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user_uuid = db_user.id
+
+    duplicated = await duplicate_persona(persona_id=persona_id, user_id=user_uuid)
+    if not duplicated:
+        raise HTTPException(
+            status_code=404, detail="Persona not found or permission denied"
+        )
+
+    return PersonaResponse(
+        id=str(duplicated.id),
+        user_id=str(duplicated.user_id),
+        name=duplicated.name,
+        content=duplicated.content,
+        description=duplicated.description,
+        category=duplicated.category,
+        tags=duplicated.tags,
+        is_public=duplicated.is_public,
+        created_at=duplicated.created_at.isoformat(),
+        updated_at=duplicated.updated_at.isoformat(),
+    )
+
+
+@router.post("/bulk", response_model=BulkOperationResponse)
+async def bulk_operation_endpoint(
+    request: BulkOperationRequest = Body(...),
+    current_user: Dict[str, Any] = Depends(get_current_user_required),
+):
+    """일괄 작업 처리"""
+    from repository.user_repository import get_user_by_telegram_id
+
+    db_user = await get_user_by_telegram_id(int(current_user["id"]))
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user_uuid = db_user.id
+
+    if request.action == "delete":
+        result = await bulk_delete_personas(
+            persona_ids=request.persona_ids, user_id=user_uuid
+        )
+    elif request.action == "make_public":
+        result = await bulk_toggle_public(
+            persona_ids=request.persona_ids, user_id=user_uuid, is_public=True
+        )
+    elif request.action == "make_private":
+        result = await bulk_toggle_public(
+            persona_ids=request.persona_ids, user_id=user_uuid, is_public=False
+        )
+    else:
+        raise HTTPException(status_code=400, detail="Invalid action")
+
+    return BulkOperationResponse(**result)
+
+
+@router.post("/export")
+async def export_personas_endpoint(
+    request: ExportRequest = Body(...),
+    current_user: Dict[str, Any] = Depends(get_current_user_required),
+):
+    """Persona 내보내기 (JSON 다운로드)"""
+    from datetime import datetime
+    from fastapi.responses import JSONResponse
+
+    from repository.user_repository import get_user_by_telegram_id
+
+    db_user = await get_user_by_telegram_id(int(current_user["id"]))
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user_uuid = db_user.id
+
+    exported = await export_personas(persona_ids=request.persona_ids, user_id=user_uuid)
+
+    return JSONResponse(
+        content={
+            "personas": exported,
+            "exported_at": datetime.now().isoformat(),
+            "count": len(exported),
+        },
+        headers={"Content-Disposition": 'attachment; filename="personas_export.json"'},
+    )
+
+
+@router.post("/import", response_model=dict)
+async def import_personas_endpoint(
+    request: ImportRequest = Body(...),
+    current_user: Dict[str, Any] = Depends(get_current_user_required),
+):
+    """Persona 가져오기 (JSON 업로드)"""
+    from repository.user_repository import get_user_by_telegram_id
+
+    db_user = await get_user_by_telegram_id(int(current_user["id"]))
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user_uuid = db_user.id
+
+    result = await import_personas(
+        personas_data=request.personas,
+        user_id=user_uuid,
+        overwrite_names=request.overwrite_names,
+    )
+
+    return result

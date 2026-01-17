@@ -4,7 +4,9 @@
 RAG 청크의 임베딩 저장, 검색, 삭제 작업을 처리합니다.
 pgvector를 사용한 유사도 검색을 지원합니다.
 """
+
 from typing import List
+from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,8 +36,8 @@ class EmbeddingRepository:
         self,
         chunks: List[TextChunk],
         embeddings: List[List[float]],
-        chat_room_id: int,
-        file_id: int
+        chat_room_id: UUID,
+        file_id: int,
     ) -> None:
         """
         임베딩 벡터 저장
@@ -43,7 +45,7 @@ class EmbeddingRepository:
         Args:
             chunks: 텍스트 청크 리스트
             embeddings: 임베딩 벡터 리스트 (768차원)
-            chat_room_id: 채팅방 ID
+            chat_room_id: 채팅방 ID (UUID)
             file_id: 파일 ID
 
         Raises:
@@ -58,7 +60,9 @@ class EmbeddingRepository:
         # 벡터 차원 확인 (768차원)
         for i, embedding in enumerate(embeddings):
             if len(embedding) != 768:
-                raise ValueError(f"임베딩 {i}의 차원이 768이어야 합니다 (현재: {len(embedding)})")
+                raise ValueError(
+                    f"임베딩 {i}의 차원이 768이어야 합니다 (현재: {len(embedding)})"
+                )
 
         # 배치 삽입
         for chunk, embedding in zip(chunks, embeddings):
@@ -78,17 +82,14 @@ class EmbeddingRepository:
                     "chunk_index": chunk.chunk_index,
                     "content": chunk.content,
                     "embedding": embedding_str,
-                    "token_count": len(chunk.content.split())  # 간단한 토큰 수 추정
-                }
+                    "token_count": len(chunk.content.split()),  # 간단한 토큰 수 추정
+                },
             )
 
         await self.session.commit()
 
     async def search_embeddings(
-        self,
-        query_embedding: List[float],
-        chat_room_id: int,
-        limit: int = 5
+        self, query_embedding: List[float], chat_room_id: UUID, limit: int = 5
     ) -> List[SearchResult]:
         """
         유사도 검색
@@ -97,14 +98,16 @@ class EmbeddingRepository:
 
         Args:
             query_embedding: 쿼리 임베딩 벡터 (768차원)
-            chat_room_id: 검색할 채팅방 ID (격리를 위해 사용)
+            chat_room_id: 검색할 채팅방 ID (UUID, 격리를 위해 사용)
             limit: 반환할 최대 결과 수
 
         Returns:
             검색 결과 리스트 (내림차순 정렬)
         """
         if len(query_embedding) != 768:
-            raise ValueError(f"쿼리 임베딩 차원이 768이어야 합니다 (현재: {len(query_embedding)})")
+            raise ValueError(
+                f"쿼리 임베딩 차원이 768이어야 합니다 (현재: {len(query_embedding)})"
+            )
 
         # pgvector 코사인 거리 연산자: <=> (거리가 작을수록 유사함)
         # 코사인 유사도 = 1 - 코사인 거리
@@ -127,8 +130,8 @@ class EmbeddingRepository:
             {
                 "query_embedding": embedding_str,
                 "chat_room_id": chat_room_id,
-                "limit": limit
-            }
+                "limit": limit,
+            },
         )
 
         rows = result.fetchall()
@@ -138,19 +141,21 @@ class EmbeddingRepository:
             # 파일 메타데이터 조회
             file_result = await self.session.execute(
                 text("SELECT filename FROM rag_files WHERE id = :file_id"),
-                {"file_id": row.file_id}
+                {"file_id": row.file_id},
             )
             filename = file_result.scalar()
 
-            results.append(SearchResult(
-                content=row.content,
-                score=float(row.score),
-                metadata={
-                    "chunk_index": row.chunk_index,
-                    "file_id": row.file_id,
-                    "file_name": filename or "unknown"
-                }
-            ))
+            results.append(
+                SearchResult(
+                    content=row.content,
+                    score=float(row.score),
+                    metadata={
+                        "chunk_index": row.chunk_index,
+                        "file_id": row.file_id,
+                        "file_name": filename or "unknown",
+                    },
+                )
+            )
 
         return results
 
@@ -163,19 +168,19 @@ class EmbeddingRepository:
         """
         await self.session.execute(
             text("DELETE FROM rag_chunks WHERE file_id = :file_id"),
-            {"file_id": file_id}
+            {"file_id": file_id},
         )
         await self.session.commit()
 
-    async def delete_by_chat_room(self, chat_room_id: int) -> None:
+    async def delete_by_chat_room(self, chat_room_id: UUID) -> None:
         """
         채팅방 ID로 임베딩 삭제
 
         Args:
-            chat_room_id: 채팅방 ID
+            chat_room_id: 채팅방 ID (UUID)
         """
         await self.session.execute(
             text("DELETE FROM rag_chunks WHERE chat_room_id = :chat_room_id"),
-            {"chat_room_id": chat_room_id}
+            {"chat_room_id": chat_room_id},
         )
         await self.session.commit()

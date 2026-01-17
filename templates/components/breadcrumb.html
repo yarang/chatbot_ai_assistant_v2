@@ -1,0 +1,218 @@
+{% macro breadcrumb(items) %}
+{#
+  Breadcrumb navigation component
+
+  Args:
+      items: List of dictionaries with 'label' and 'url' keys
+             Example: [{'label': 'Home', 'url': '/'}, {'label': 'Personas', 'url': '/personas'}]
+
+  Usage:
+      {{ breadcrumb([
+          {'label': 'Home', 'url': '/'},
+          {'label': 'Personas', 'url': '/personas'},
+          {'label': 'Edit', 'url': None}  # None for current page
+      ]) }}
+#}
+<nav class="breadcrumb" aria-label="Breadcrumb">
+    <ol class="breadcrumb-list" itemscope itemtype="https://schema.org/BreadcrumbList">
+        {% for item in items %}
+        <li class="breadcrumb-item" itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+            {% if item.url %}
+            <a href="{{ item.url }}" itemprop="item">
+                <span itemprop="name">{{ item.label }}</span>
+            </a>
+            {% else %}
+            <span itemprop="name" class="breadcrumb-current">{{ item.label }}</span>
+            {% endif %}
+            <meta itemprop="position" content="{{ loop.index }}" />
+        </li>
+        {% if not loop.last %}
+        <li class="breadcrumb-separator" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M5.5 3l5 5-5 5V3z"/>
+            </svg>
+        </li>
+        {% endif %}
+        {% endfor %}
+    </ol>
+</nav>
+
+<style>
+    .breadcrumb {
+        margin-bottom: var(--spacing-lg);
+        padding: 0;
+    }
+
+    .breadcrumb-list {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        gap: var(--spacing-xs);
+    }
+
+    .breadcrumb-item {
+        display: flex;
+        align-items: center;
+        font-size: 0.875rem;
+    }
+
+    .breadcrumb-item a {
+        color: var(--text-muted);
+        text-decoration: none;
+        transition: color var(--transition-fast);
+    }
+
+    .breadcrumb-item a:hover {
+        color: var(--primary-color);
+    }
+
+    .breadcrumb-item a:focus {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+        border-radius: var(--radius-sm);
+    }
+
+    .breadcrumb-current {
+        color: var(--text-color);
+        font-weight: 500;
+    }
+
+    .breadcrumb-separator {
+        display: flex;
+        align-items: center;
+        color: var(--text-light);
+        margin: 0 var(--spacing-xs);
+    }
+
+    .breadcrumb-separator svg {
+        display: block;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .breadcrumb {
+            margin-bottom: var(--spacing-md);
+        }
+
+        .breadcrumb-list {
+            font-size: 0.8125rem;
+        }
+
+        /* Truncate long labels on mobile */
+        .breadcrumb-item {
+            max-width: 150px;
+        }
+
+        .breadcrumb-item a,
+        .breadcrumb-current {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            display: block;
+        }
+    }
+
+    /* Accessibility */
+    @media (prefers-reduced-motion: reduce) {
+        .breadcrumb-item a {
+            transition: none;
+        }
+    }
+</style>
+{% endmacro %}
+
+{% macro page_header(title, subtitle=None, actions=None) %}
+{#
+  Page header component with title, subtitle, and action buttons
+
+  Args:
+      title: Page title
+      subtitle: Optional subtitle/description
+      actions: List of action buttons (HTML strings)
+#}
+<div class="page-header">
+    <div class="page-header-content">
+        <div class="page-header-text">
+            <h1 class="page-title">{{ title }}</h1>
+            {% if subtitle %}
+            <p class="page-subtitle">{{ subtitle }}</p>
+            {% endif %}
+        </div>
+        {% if actions %}
+        <div class="page-header-actions">
+            {% for action in actions %}
+            {{ action }}
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+    .page-header {
+        margin-bottom: var(--spacing-xl);
+    }
+
+    .page-header-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: var(--spacing-md);
+    }
+
+    .page-header-text {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin: 0 0 var(--spacing-xs) 0;
+        color: var(--text-color);
+        line-height: 1.2;
+    }
+
+    .page-subtitle {
+        font-size: 1rem;
+        color: var(--text-muted);
+        margin: 0;
+        line-height: 1.5;
+    }
+
+    .page-header-actions {
+        display: flex;
+        gap: var(--spacing-sm);
+        flex-shrink: 0;
+        align-items: center;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .page-header-content {
+            flex-direction: column;
+        }
+
+        .page-header-actions {
+            width: 100%;
+            flex-wrap: wrap;
+        }
+
+        .page-header-actions .btn {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .page-title {
+            font-size: 1.5rem;
+        }
+
+        .page-subtitle {
+            font-size: 0.9375rem;
+        }
+    }
+</style>
+{% endmacro %}

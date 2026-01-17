@@ -6,16 +6,18 @@ sentence-transformers 임베딩(768차원)과 pgvector를 사용합니다.
 """
 
 import asyncio
+import json
 import logging
 from typing import List, Optional
+from uuid import UUID
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.cache import generate_cache_key, rag_result_cache
 from core.database import get_async_session
 from models.chat_room_model import ChatRoom
 from models.text_chunk import TextChunk
-from repository.chat_room_repository import get_chat_room_by_telegram_id
 
 logger = logging.getLogger(__name__)
 
@@ -29,17 +31,14 @@ class RAGSearchService:
     """
 
     def __init__(self):
-        # 임베딩 서비스는 초기화 시 로드됨
-        from services.embedding_service import EmbeddingService
-
-        # 임베딩 모델 로드 (첫 호출 시 로드됨)
-        self.embedding_service = EmbeddingService(None)
+        # 임베딩 모델은 나중에 지연 로딩
+        self.embedding_model = None
         logger.info("RAGSearchService 초기화 완료")
 
     async def search(
         self,
         query: str,
-        chat_room_id: int,
+        chat_room_id: str,
         limit: int = 5,
         threshold: float = 0.5,
     ) -> List[dict]:
@@ -48,7 +47,7 @@ class RAGSearchService:
 
         Args:
             query: 사용자 질문
-            chat_room_id: 채팅방 ID
+            chat_room_id: 채팅방 ID (UUID string)
             limit: 반환할 최대 청크 수 (기본값: 5)
             threshold: 유사도 임계값 (0-1, 기본값: 0.5)
 
@@ -69,15 +68,23 @@ class RAGSearchService:
             f"RAG 검색 시작: chat_room_id={chat_room_id}, query='{query[:50]}...'"
         )
 
-        # 1. 채팅방 존재 확인
-        chat_room = await get_chat_room_by_telegram_id(telegram_chat_id=chat_room_id)
-        if not chat_room:
-            logger.warning(f"채팅방을 찾을 수 없음: chat_room_id={chat_room_id}")
-            raise ValueError(f"채팅방을 찾을 수 없습니다: chat_room_id={chat_room_id}")
+        # 0. 캐시 확인
+        cache_key = generate_cache_key("rag", chat_room_id, query, limit, threshold)
+        cached_result = await rag_result_cache.get(cache_key)
+        if cached_result is not None:
+            logger.info(f"RAG 검색 캐시 적중: chat_room_id={chat_room_id}")
+            return cached_result
 
-        actual_chat_room_id = str(chat_room.id)
+        # 1. Validate chat_room_id is a valid UUID
+        try:
+            actual_chat_room_id = UUID(chat_room_id)
+        except ValueError:
+            logger.warning(f"잘못된 채팅방 ID 형식: chat_room_id={chat_room_id}")
+            raise ValueError(
+                f"잘못된 채팅방 ID 형식입니다: chat_room_id={chat_room_id}"
+            )
 
-        # 2. 질문 임베딩 생성
+        # 2. 질문 임베딩 생성 (캐싱 포함)
         try:
             query_embedding = await self._embed_query(query)
             logger.debug(f"질문 임베딩 생성 완료: 차원={len(query_embedding)}")
@@ -95,6 +102,9 @@ class RAGSearchService:
                     limit=limit,
                     threshold=threshold,
                 )
+
+                # 결과 캐싱
+                await rag_result_cache.set(cache_key, chunks)
 
                 logger.info(
                     f"RAG 검색 완료: chat_room_id={chat_room_id}, "
@@ -119,14 +129,22 @@ class RAGSearchService:
         Raises:
             Exception: 임베딩 생성 실패 시
         """
-        # EmbeddingService의 _embed_with_retry 메서드 사용
-        embeddings = await self.embedding_service._embed_with_retry([query])
-        return embeddings[0]
+        # 싱글톤 모델 관리자에서 임베딩 모델 가져오기
+        from core.embedding_model_manager import get_embedding_model
+
+        if self.embedding_model is None:
+            self.embedding_model = await get_embedding_model()
+
+        # 임베딩 생성
+        embeddings = self.embedding_model.encode(
+            [query], convert_to_numpy=True, normalize_embeddings=True
+        )
+        return embeddings[0].tolist()
 
     async def _search_similar_chunks(
         self,
         session: AsyncSession,
-        chat_room_id: str,
+        chat_room_id: UUID,
         query_embedding: List[float],
         limit: int,
         threshold: float,
@@ -138,7 +156,7 @@ class RAGSearchService:
 
         Args:
             session: DB 세션
-            chat_room_id: 채팅방 ID
+            chat_room_id: 채팅방 ID (UUID)
             query_embedding: 쿼리 임베딩 벡터
             limit: 반환할 최대 청크 수
             threshold: 유사도 임계값 (0-1, 낮을수록 유사)
@@ -149,18 +167,22 @@ class RAGSearchService:
         # pgvector 쿼리: 코사인 거리(<=>) 사용
         # 거리는 0-2 범위 (0=완전 일치, 2=완전 반대)
         # 유사도 = 1 - (거리 / 2)
+
+        # 임베딩 벡터를 배열 문자열로 변환
+        embedding_str = f"[{','.join(map(str, query_embedding))}]"
+
         sql_query = text("""
             SELECT
                 rc.id as chunk_id,
                 rc.content,
                 rc.file_id,
                 f.filename,
-                1 - (rc.embedding <=> :query_embedding::vector) as similarity
+                1 - (rc.embedding <=> CAST(:query_embedding AS vector)) as similarity
             FROM rag_chunks rc
-            JOIN files f ON f.id = rc.file_id
+            JOIN rag_files f ON f.id = rc.file_id
             WHERE rc.chat_room_id = :chat_room_id
-                AND (rc.embedding <=> :query_embedding::vector) / 2 < :threshold
-            ORDER BY rc.embedding <=> :query_embedding::vector
+                AND (rc.embedding <=> CAST(:query_embedding AS vector)) / 2 < :threshold
+            ORDER BY rc.embedding <=> CAST(:query_embedding AS vector)
             LIMIT :limit
         """)
 
@@ -168,7 +190,7 @@ class RAGSearchService:
             sql_query,
             {
                 "chat_room_id": chat_room_id,
-                "query_embedding": str(query_embedding),
+                "query_embedding": embedding_str,
                 "threshold": threshold,
                 "limit": limit,
             },
@@ -216,7 +238,7 @@ class RAGSearchService:
             stmt = text("""
                 SELECT rc.id, rc.content, rc.chunk_index, rc.file_id, f.filename
                 FROM rag_chunks rc
-                JOIN files f ON f.id = rc.file_id
+                JOIN rag_files f ON f.id = rc.file_id
                 WHERE rc.id = :chunk_id
             """)
 
@@ -240,11 +262,14 @@ class RAGSearchService:
                 ORDER BY chunk_index
             """)
 
-            result = await session.execute(stmt, {
-                "file_id": file_id,
-                "min_index": current_chunk_index - window_size,
-                "max_index": current_chunk_index + window_size,
-            })
+            result = await session.execute(
+                stmt,
+                {
+                    "file_id": file_id,
+                    "min_index": current_chunk_index - window_size,
+                    "max_index": current_chunk_index + window_size,
+                },
+            )
             rows = result.fetchall()
 
             # before, current, after로 분류

@@ -40,6 +40,11 @@
         {% block content %}{% endblock %}
     </main>
 
+    <!-- Toast Notifications -->
+    {% from 'components/toast_notifications.html' import toast_container, toast_scripts %}
+    {{ toast_container() }}
+    {{ toast_scripts() }}
+
     <script>
         // Dark mode toggle
         const themeToggle = document.getElementById('theme-toggle');

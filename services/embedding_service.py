@@ -4,9 +4,11 @@
 텍스트 청크의 임베딩 생성, 배치 처리, API 재시도, 비용 모니터링을 수행합니다.
 sentence-transformers를 사용하여 로컬에서 768차원 벡터를 생성하고 저장합니다.
 """
+
 import logging
 import time
 from typing import List
+from uuid import UUID
 
 from sentence_transformers import SentenceTransformer
 from tenacity import (
@@ -61,10 +63,7 @@ class EmbeddingService:
         logger.info("EmbeddingService 초기화 완료")
 
     async def embed_chunks(
-        self,
-        chunks: List[TextChunk],
-        chat_room_id: int,
-        file_id: int
+        self, chunks: List[TextChunk], chat_room_id: UUID, file_id: int
     ) -> EmbeddingResult:
         """
         텍스트 청크 임베딩 생성 및 저장
@@ -74,7 +73,7 @@ class EmbeddingService:
 
         Args:
             chunks: 텍스트 청크 리스트
-            chat_room_id: 채팅방 ID
+            chat_room_id: 채팅방 ID (UUID)
             file_id: 파일 ID
 
         Returns:
@@ -108,7 +107,7 @@ class EmbeddingService:
         failed_chunks = 0
 
         for i in range(0, total_chunks, self.max_batch_size):
-            batch = chunks[i:i + self.max_batch_size]
+            batch = chunks[i : i + self.max_batch_size]
             batch_count += 1
 
             logger.info(f"배치 {batch_count} 처리: {len(batch)} 청크")
@@ -122,13 +121,11 @@ class EmbeddingService:
                     chunks=batch,
                     embeddings=embeddings,
                     chat_room_id=chat_room_id,
-                    file_id=file_id
+                    file_id=file_id,
                 )
 
                 successful_chunks += len(batch)
-                logger.info(
-                    f"배치 {batch_count} 완료: {len(batch)} 청크 임베딩 성공"
-                )
+                logger.info(f"배치 {batch_count} 완료: {len(batch)} 청크 임베딩 성공")
 
             except Exception as e:
                 failed_chunks += len(batch)
@@ -148,8 +145,8 @@ class EmbeddingService:
             metadata={
                 "chat_room_id": chat_room_id,
                 "file_id": file_id,
-                "model": "all-mpnet-base-v2"
-            }
+                "model": "all-mpnet-base-v2",
+            },
         )
 
         logger.info(
@@ -190,11 +187,12 @@ class EmbeddingService:
 
         return embeddings
 
-    def _get_embedding_model(self) -> SentenceTransformer:
+    async def _get_embedding_model(self) -> SentenceTransformer:
         """
-        sentence-transformers 임베딩 모델 초기화
+        sentence-transformers 임베딩 모델 초기화 (싱글톤)
 
         all-mpnet-base-v2 모델을 사용하여 768차원 임베딩을 생성합니다.
+        전역 싱글톤 모델 관리자를 사용하여 메모리 중복을 방지합니다.
 
         Returns:
             SentenceTransformer: 초기화된 임베딩 모델
@@ -203,10 +201,10 @@ class EmbeddingService:
             이 메서드는 내부 사용을 위한 것이며,
             _batch_embed() 메서드를 통해 호출됩니다.
         """
-        # 로컬에서 모델 로드 (첫 실행 시 다운로드)
-        model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
+        from core.embedding_model_manager import get_embedding_model
 
-        logger.info("sentence-transformers 임베딩 모델 초기화 완료: all-mpnet-base-v2")
+        model = await get_embedding_model()
+        logger.info("sentence-transformers 임베딩 모델 로드 완료 (싱글톤)")
 
         return model
 
@@ -214,7 +212,7 @@ class EmbeddingService:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
         retry=retry_if_exception_type(Exception),
-        reraise=True
+        reraise=True,
     )
     async def _embed_with_retry(self, texts: List[str]) -> List[List[float]]:
         """
@@ -239,9 +237,7 @@ class EmbeddingService:
         try:
             # sentence-transformers로 임베딩 생성 (동기 호출을 async로 래핑)
             embeddings = self.embedding_model.encode(
-                texts,
-                convert_to_numpy=True,
-                normalize_embeddings=True
+                texts, convert_to_numpy=True, normalize_embeddings=True
             )
 
             # numpy 배열을 리스트로 변환
@@ -277,6 +273,5 @@ class EmbeddingService:
         """
         # 로컬 모델이므로 API 비용 없음
         logger.info(
-            f"임베딩 완료: {chunk_count} 청크 처리 "
-            f"(로컬 모델 사용, API 비용 없음)"
+            f"임베딩 완료: {chunk_count} 청크 처리 (로컬 모델 사용, API 비용 없음)"
         )

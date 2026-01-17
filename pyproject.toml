@@ -37,6 +37,7 @@ dependencies = [
     "ruff>=0.14.11",
     "mypy>=1.19.1",
     "bandit>=1.9.2",
+    "ddgs>=9.10.0",
 ]
 
 [project.optional-dependencies]
