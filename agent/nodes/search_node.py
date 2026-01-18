@@ -3,41 +3,43 @@ from datetime import datetime
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
+from agent.state import ChatState
 from core.llm import get_llm
 from core.logger import get_logger
-
-logger = get_logger(__name__)
-from agent.state import ChatState
 from repository.conversation_repository import get_history
 from tools.memory_tool import get_memory_tool
 from tools.retrieval_tool import get_retrieval_tool
 from tools.search_tool import get_search_tool
 from tools.time_tool import get_time_tool
 
+logger = get_logger(__name__)
+
 
 async def researcher_node(state: ChatState):
     """Researcher agent node responsible for information retrieval.
-    
-    This agent determines whether to search internal knowledge or the web 
-    based on the user's query and context. It uses tools to fetch usage 
+
+    This agent determines whether to search internal knowledge or the web
+    based on the user's query and context. It uses tools to fetch usage
     data and citates sources.
 
     Args:
-        state (ChatState): The current state of the conversation graph, 
+        state (ChatState): The current state of the conversation graph,
             containing messages, chat room ID, and other metadata.
 
     Returns:
-        dict: A dictionary containing the updated messages, token usage stats, 
+        dict: A dictionary containing the updated messages, token usage stats,
             and the applied system prompt.
     """
     llm = get_llm(state.get("model_name"))
     search_tool = get_search_tool()
     chat_room_id = state.get("chat_room_id")
-    retrieval_tool = get_retrieval_tool(chat_room_id=str(chat_room_id) if chat_room_id else None)
+    retrieval_tool = get_retrieval_tool(
+        chat_room_id=str(chat_room_id) if chat_room_id else None
+    )
     memory_tool = get_memory_tool()
     time_tool = get_time_tool()
     tools = [search_tool, retrieval_tool, memory_tool, time_tool]
-    
+
     # Researcher agent
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -57,19 +59,20 @@ async def researcher_node(state: ChatState):
                 "Do NOT rely on internal knowledge alone.\n"
                 "Do NOT simulate user dialogue.\n"
                 "IMPORTANT: Keep your answers CONCISE and to the point. Even if detailed information is requested, limit the response length to appropriately summary level (max 1 page equivalent). Avoid excessive verbosity.\n"
-                f"Current time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                f"Current time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             ),
             MessagesPlaceholder(variable_name="messages"),
         ]
     )
-    
+
     # Determine forcing strategy (Method B)
     # If the last message is from the user, we FORCE the usage of the retrieval tool.
     # This prevents the AI from answering from memory.
     last_message = state["messages"][-1]
     force_retrieval = isinstance(last_message, HumanMessage)
-    
+
     from core.config import get_settings
+
     settings = get_settings()
 
     if force_retrieval and settings.llm_api.lower() != "groq":
@@ -78,50 +81,58 @@ async def researcher_node(state: ChatState):
     else:
         # Auto mode for subsequent turns (e.g. after tool execution) or for Groq
         chain = prompt | llm.bind_tools(tools)
-    
+
     # Construct messages including history and summary
     messages = []
     if state.get("summary"):
-        messages.append(SystemMessage(content=f"Previous conversation summary: {state['summary']}"))
-        
+        messages.append(
+            SystemMessage(content=f"Previous conversation summary: {state['summary']}")
+        )
+
     # Fetch recent history
     chat_room_id = state["chat_room_id"]
     history_tuples = await get_history(chat_room_id, limit=5)
     for role, content, name, _ in history_tuples:
         # Truncate long messages in history to save tokens
         if len(content) > 1000:
-             content = content[:1000] + "...(truncated)"
-             
+            content = content[:1000] + "...(truncated)"
+
         if role == "user":
             messages.append(HumanMessage(content=content, name=name))
         else:
             messages.append(AIMessage(content=content))
-            
+
     messages.extend(state["messages"])
-    
+
     response = await chain.ainvoke({"messages": messages})
 
     # FALLBACK LOGIC: If LLM returns empty response after retrieval failure, force Google Search
     if not response.content and not response.tool_calls:
         last_msg = messages[-1]
         # Check if the last message was detailed tool output (ToolMessage)
-        if isinstance(last_msg, ToolMessage) and "No relevant documents found" in last_msg.content:
-             # Find original query from last HumanMessage
-             user_query = ""
-             for msg in reversed(messages):
-                 if isinstance(msg, HumanMessage):
-                     user_query = msg.content
-                     break
-             
-             if user_query:
-                 import uuid
-                 logger.warning("LLM returned empty response after retrieval failure. Forcing Web Search fallback.")
-                 fallback_tool_call = {
-                     "name": "tavily_search",
-                     "args": {"query": user_query},
-                     "id": f"call_{uuid.uuid4().hex[:8]}"
-                 }
-                 response = AIMessage(content="", tool_calls=[fallback_tool_call])
+        if (
+            isinstance(last_msg, ToolMessage)
+            and "No relevant documents found" in last_msg.content
+        ):
+            # Find original query from last HumanMessage
+            user_query = ""
+            for msg in reversed(messages):
+                if isinstance(msg, HumanMessage):
+                    user_query = msg.content
+                    break
+
+            if user_query:
+                import uuid
+
+                logger.warning(
+                    "LLM returned empty response after retrieval failure. Forcing Web Search fallback."
+                )
+                fallback_tool_call = {
+                    "name": "tavily_search",
+                    "args": {"query": user_query},
+                    "id": f"call_{uuid.uuid4().hex[:8]}",
+                }
+                response = AIMessage(content="", tool_calls=[fallback_tool_call])
 
     # Capture system prompt
     full_system_prompt = (
@@ -134,18 +145,18 @@ async def researcher_node(state: ChatState):
         "IMPORTANT: Keep your answers CONCISE. Limit response length to max 1 page. Avoid excessive verbosity.\n"
         f"Current Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     )
-    
+
     # Track token usage
     input_tokens = state.get("input_tokens_used", 0)
     output_tokens = state.get("output_tokens_used", 0)
-    
-    if hasattr(response, 'usage_metadata') and response.usage_metadata:
-        input_tokens += response.usage_metadata.get('input_tokens', 0)
-        output_tokens += response.usage_metadata.get('output_tokens', 0)
-    
+
+    if hasattr(response, "usage_metadata") and response.usage_metadata:
+        input_tokens += response.usage_metadata.get("input_tokens", 0)
+        output_tokens += response.usage_metadata.get("output_tokens", 0)
+
     return {
         "messages": [response],
         "input_tokens_used": input_tokens,
         "output_tokens_used": output_tokens,
-        "applied_system_prompt": full_system_prompt
+        "applied_system_prompt": full_system_prompt,
     }

@@ -1,4 +1,4 @@
-from typing import AsyncIterator, Dict, Optional
+from typing import AsyncIterator, Optional
 
 import openai
 from google.api_core import exceptions as google_exceptions
@@ -7,11 +7,19 @@ from langchain_core.messages import HumanMessage
 from agent.graph import graph
 from core.config import get_settings
 from core.logger import get_logger
+from core.llm import get_llm
+from repository.conversation_repository import get_history
 from services.streaming_helper import StreamBuffer, stream_with_buffer
 
 logger = get_logger(__name__)
 
-async def ask_question(user_id: Optional[str], chat_room_id: str, question: str, system_prompt: Optional[str] = None) -> str:
+
+async def ask_question(
+    user_id: Optional[str],
+    chat_room_id: str,
+    question: str,
+    system_prompt: Optional[str] = None,
+) -> str:
     """질문 처리 및 답변 생성 (LangGraph 사용).
 
     사용자의 질문을 받아 LangGraph 워크플로우를 통해 답변을 생성합니다.
@@ -31,16 +39,16 @@ async def ask_question(user_id: Optional[str], chat_room_id: str, question: str,
     """
     if not user_id:
         user_id = "anonymous"
-        
+
     try:
         # Initial State
         initial_state = {
             "messages": [HumanMessage(content=question)],
             "user_id": user_id,
             "chat_room_id": chat_room_id,
-            "persona_content": system_prompt
+            "persona_content": system_prompt,
         }
-        
+
         # Invoke Graph
         settings = get_settings()
         config = {"recursion_limit": settings.agent.recursion_limit}
@@ -66,15 +74,17 @@ async def ask_question(user_id: Optional[str], chat_room_id: str, question: str,
         except Exception as e:
             if "429" in str(e) or "ResourceExhausted" in str(e):
                 logger.warning(f"Rate limit exceeded: {e}")
-                return "죄송합니다. API 사용량을 초과했습니다. 나중에 다시 시도해 주세요."
+                return (
+                    "죄송합니다. API 사용량을 초과했습니다. 나중에 다시 시도해 주세요."
+                )
             raise e
-        
+
         # Extract Response
         messages = final_state["messages"]
         last_message = messages[-1]
-        
+
         return last_message.content
-        
+
     except Exception as e:
         logger.error(f"Error in ask_question: {e}")
         return "죄송합니다. 오류가 발생했습니다."
@@ -85,7 +95,7 @@ async def ask_question_stream(
     chat_room_id: str,
     question: str,
     system_prompt: Optional[str] = None,
-    user_name: Optional[str] = None
+    user_name: Optional[str] = None,
 ) -> AsyncIterator[str]:
     """질문 처리 및 스트리밍 답변 생성 (LangGraph 사용).
 
@@ -107,7 +117,7 @@ async def ask_question_stream(
     """
     if not user_id:
         user_id = "anonymous"
-    
+
     try:
         # Initial State
         settings = get_settings()
@@ -125,17 +135,17 @@ async def ask_question_stream(
             "chat_room_id": chat_room_id,
             "persona_content": system_prompt,
             "model_name": current_model_name,
-            "next": ""
+            "next": "",
         }
-        
+
         # Stream from graph with optimized buffer for real-time updates
         buffer = StreamBuffer(time_threshold_sec=0.3, char_threshold=25)
 
         config = {"recursion_limit": settings.agent.recursion_limit}
-        
+
         try:
             stream = graph.astream(initial_state, config=config, stream_mode="updates")
-            
+
             async for chunk in stream_with_buffer(stream, buffer):
                 yield chunk
         except google_exceptions.ServiceUnavailable:
@@ -151,11 +161,13 @@ async def ask_question_stream(
             logger.error(f"OpenAI/Groq Connection Error in stream: {e}")
             yield "죄송합니다. AI 서버 연결에 문제가 발생했습니다."
         except openai.APIStatusError as e:
-            logger.error(f"OpenAI/Groq API Error in stream: {e.status_code} - {e.message}")
+            logger.error(
+                f"OpenAI/Groq API Error in stream: {e.status_code} - {e.message}"
+            )
             if e.status_code == 429:
                 yield "죄송합니다. 현재 사용량이 많아 잠시 후 다시 시도해 주세요."
             else:
-                 yield "죄송합니다. AI 서버 오류가 발생했습니다."
+                yield "죄송합니다. AI 서버 오류가 발생했습니다."
         except Exception as e:
             if "429" in str(e) or "ResourceExhausted" in str(e):
                 logger.warning(f"Rate limit exceeded in stream: {e}")
@@ -163,17 +175,10 @@ async def ask_question_stream(
             else:
                 logger.error(f"Error in stream: {e}")
                 yield "죄송합니다. 오류가 발생했습니다."
-            
+
     except Exception as e:
         logger.error(f"Error in ask_question_stream: {e}")
         yield "죄송합니다. 오류가 발생했습니다."
-
-
-
-
-
-from core.llm import get_llm
-from repository.conversation_repository import get_history
 
 
 async def summarize_chat_room(chat_room_id: str, user_id: str) -> str:
@@ -191,19 +196,19 @@ async def summarize_chat_room(chat_room_id: str, user_id: str) -> str:
     try:
         # 대화 기록 가져오기 (최근 50개)
         history = await get_history(chat_room_id, limit=50)
-        
+
         if not history:
             return "요약할 대화 내용이 없습니다."
-            
+
         # 대화 내용 텍스트로 변환 (오래된 순)
         conversation_text = ""
         for role, message, name, _ in history:
             conversation_text += f"{name} ({role}): {message}\n"
-            
+
         # 요약 요청 프롬프트
         # 요약 요청 프롬프트
-        llm = get_llm() # Use default configured LLM
-        
+        llm = get_llm()  # Use default configured LLM
+
         prompt = f"""
         다음 대화 내용을 간략하게 요약해주세요. 주요 주제와 결론 위주로 정리해주세요.
         
@@ -212,10 +217,10 @@ async def summarize_chat_room(chat_room_id: str, user_id: str) -> str:
         
         요약:
         """
-        
+
         response = await llm.ainvoke([HumanMessage(content=prompt)])
         return response.content
-        
+
     except Exception as e:
         logger.error(f"Error summarizing chat room: {e}", exc_info=True)
         return "대화 내용을 요약하는 중 오류가 발생했습니다."

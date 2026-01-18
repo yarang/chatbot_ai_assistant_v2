@@ -15,7 +15,7 @@ from core.database import get_async_session
 from models.text_chunk import TextChunk
 
 if TYPE_CHECKING:
-    from services.background_task_service import BackgroundTaskService
+    pass
 
 
 # ============================================================================

@@ -21,9 +21,9 @@ async def verify_user_names():
     # Create dummy data
     test_email = f"test_{uuid.uuid4()}@example.com"
     test_user_name = "TestAlice"
-    test_chat_room_id = str(uuid.uuid4())
+    str(uuid.uuid4())
     
-    async with get_async_session() as session:
+    async with get_async_session():
         # Create User
         print(f"Creating user {test_user_name}...")
         user = await upsert_user(

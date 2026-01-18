@@ -9,7 +9,6 @@ Features:
 - Typing indicator support
 """
 
-import asyncio
 import time
 from typing import AsyncIterator, Optional, Tuple
 

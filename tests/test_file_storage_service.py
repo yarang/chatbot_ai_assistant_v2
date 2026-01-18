@@ -3,9 +3,7 @@ FileStorageService 단위 테스트
 
 파일 저장소 서비스의 파일 업로드, 삭제, 경로 해결 기능을 검증합니다.
 """
-import os
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

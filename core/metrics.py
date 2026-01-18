@@ -8,7 +8,7 @@ import asyncio
 import logging
 import time
 from collections import defaultdict
-from typing import Callable, Optional
+from typing import Callable
 
 from prometheus_client import Counter, Histogram, Gauge, generate_latest, REGISTRY
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -188,7 +188,7 @@ def track_llm_request(model: str):
 
                 return result
 
-            except Exception as e:
+            except Exception:
                 duration = time.time() - start_time
                 llm_request_duration_seconds.labels(model=model).observe(duration)
                 raise
@@ -224,7 +224,7 @@ def track_rag_search(chat_room_id: str):
 
                 return result
 
-            except Exception as e:
+            except Exception:
                 duration = time.time() - start_time
                 rag_search_duration_seconds.labels(chat_room_id=chat_room_id).observe(
                     duration
@@ -250,7 +250,7 @@ def track_cache_hit(cache_type: str, hit: bool):
 async def update_cache_metrics() -> None:
     """캐시 메트릭 업데이트"""
     try:
-        from core.cache import embedding_cache, rag_result_cache
+        from core.cache import embedding_cache
 
         embedding_cache_size.set(embedding_cache.size)
     except Exception as e:

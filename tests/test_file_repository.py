@@ -3,12 +3,9 @@ FileRepository 단위 테스트
 
 파일 메타데이터 CRUD 작업과 중복 검출 기능을 검증합니다.
 """
-from datetime import datetime
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.file import File
 from repository.file_repository import FileCreate, FileRepository
 
 

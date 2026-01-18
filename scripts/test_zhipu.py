@@ -21,7 +21,7 @@ def test_zhipu_ai():
         # LLM 초기화
         print("\n1. LLM 초기화 중...")
         llm = get_llm()
-        print(f"✅ LLM 초기화 성공")
+        print("✅ LLM 초기화 성공")
         print(f"   모델: {llm.model}")
         print(f"   타입: {type(llm).__name__}")
 
@@ -29,7 +29,7 @@ def test_zhipu_ai():
         print("\n2. 테스트 프롬프트 실행 중...")
         test_prompt = "안녕하세요? 한 글자로만 답변해주세요."
         response = llm.invoke(test_prompt)
-        print(f"✅ 응답 수신 성공")
+        print("✅ 응답 수신 성공")
         print(f"   프롬프트: {test_prompt}")
         print(f"   응답: {response.content}")
 

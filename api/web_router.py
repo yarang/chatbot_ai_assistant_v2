@@ -1,16 +1,14 @@
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from core.config import get_settings
-from core.database import get_async_session
 from core.logger import get_logger
 from core.security import (
     check_telegram_authorization,
     create_session_token,
     get_current_user,
 )
-from repository.chat_room_repository import get_chat_room_by_telegram_id
 from repository.conversation_repository import get_history
 from repository.persona_repository import get_persona_by_id, get_user_personas
 from repository.stats_repository import get_system_stats
@@ -83,7 +81,15 @@ async def telegram_callback(request: Request):
 
     response = RedirectResponse(url="/dashboard", status_code=302)
     token = create_session_token(user_data)
-    response.set_cookie("session", token, httponly=True, max_age=86400)
+    # Security: Set secure cookie attributes to prevent CSRF and ensure HTTPS-only transmission
+    response.set_cookie(
+        "session",
+        token,
+        httponly=True,  # Prevent JavaScript access (XSS protection)
+        secure=True,  # Only send over HTTPS
+        samesite="lax",  # CSRF protection
+        max_age=86400,  # 1 day
+    )
     return response
 
 
@@ -104,10 +110,7 @@ async def dashboard(request: Request, room_id: str = None):
     if not user_data:
         return RedirectResponse(url="/login")
 
-    import uuid
-
     from repository.chat_room_repository import get_chat_room_by_id, get_user_chat_rooms
-    from repository.user_repository import get_user_by_telegram_id
 
     telegram_id = int(user_data["id"])
     db_user = await get_user_by_telegram_id(telegram_id)
@@ -129,7 +132,7 @@ async def dashboard(request: Request, room_id: str = None):
     if room_id:
         try:
             current_room = await get_chat_room_by_id(room_id)
-        except:
+        except Exception:
             pass
 
     # If no specific room requested, or requested room not found/invalid, pick the first one (most likely private chat or recent)
@@ -208,7 +211,7 @@ async def list_personas(request: Request, tab: str = "my"):
     if not user_data:
         return RedirectResponse(url="/login")
 
-    from repository.persona_repository import get_public_personas, get_user_personas
+    from repository.persona_repository import get_public_personas
     from repository.user_repository import get_user_by_telegram_id
 
     db_user = await get_user_by_telegram_id(int(user_data["id"]))
@@ -255,7 +258,6 @@ async def edit_persona(request: Request, persona_id: str):
     if not user_data:
         return RedirectResponse(url="/login")
 
-    from repository.persona_repository import get_persona_by_id
     from repository.user_repository import get_user_by_telegram_id
 
     db_user = await get_user_by_telegram_id(int(user_data["id"]))
@@ -288,7 +290,6 @@ async def create_persona_web(
         return RedirectResponse(url="/login", status_code=302)
 
     from repository.persona_repository import create_persona
-    from repository.user_repository import get_user_by_telegram_id
 
     db_user = await get_user_by_telegram_id(int(user_data["id"]))
     if db_user:
@@ -326,7 +327,6 @@ async def update_persona_web(
         return RedirectResponse(url="/login", status_code=302)
 
     from repository.persona_repository import update_persona
-    from repository.user_repository import get_user_by_telegram_id
 
     db_user = await get_user_by_telegram_id(int(user_data["id"]))
     if db_user:
@@ -356,7 +356,6 @@ async def delete_persona_web(request: Request, persona_id: str):
         return RedirectResponse(url="/login", status_code=302)
 
     from repository.persona_repository import delete_persona
-    from repository.user_repository import get_user_by_telegram_id
 
     db_user = await get_user_by_telegram_id(int(user_data["id"]))
     if db_user:
@@ -376,8 +375,6 @@ async def admin_dashboard(request: Request):
     if user_id not in settings.admin_ids:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    from repository.stats_repository import get_system_stats
-
     stats = await get_system_stats()
 
     return templates.TemplateResponse(
@@ -393,14 +390,11 @@ async def view_persona(request: Request, persona_id: str):
     if not user_data:
         return RedirectResponse(url="/login")
 
-    import uuid
-
     from repository.evaluation_repository import (
         get_persona_average_score,
         get_persona_evaluations,
         get_user_evaluation_for_persona,
     )
-    from repository.persona_repository import get_persona_by_id
     from repository.user_repository import get_user_by_telegram_id
 
     db_user = await get_user_by_telegram_id(int(user_data["id"]))
@@ -455,7 +449,6 @@ async def evaluate_persona_web(
     import uuid
 
     from repository.evaluation_repository import create_evaluation
-    from repository.user_repository import get_user_by_telegram_id
 
     db_user = await get_user_by_telegram_id(int(user_data["id"]))
     if db_user:
@@ -477,7 +470,6 @@ async def duplicate_persona_web(request: Request, persona_id: str):
         return RedirectResponse(url="/login", status_code=302)
 
     from repository.persona_repository import duplicate_persona
-    from repository.user_repository import get_user_by_telegram_id
 
     db_user = await get_user_by_telegram_id(int(user_data["id"]))
     if not db_user:
@@ -504,7 +496,6 @@ async def bulk_operation_web(
         return RedirectResponse(url="/login", status_code=302)
 
     from repository.persona_repository import bulk_delete_personas, bulk_toggle_public
-    from repository.user_repository import get_user_by_telegram_id
 
     db_user = await get_user_by_telegram_id(int(user_data["id"]))
     if not db_user:
@@ -514,15 +505,13 @@ async def bulk_operation_web(
     persona_id_list = [pid.strip() for pid in persona_ids.split(",") if pid.strip()]
 
     if action == "delete":
-        result = await bulk_delete_personas(
-            persona_ids=persona_id_list, user_id=db_user.id
-        )
+        await bulk_delete_personas(persona_ids=persona_id_list, user_id=db_user.id)
     elif action == "make_public":
-        result = await bulk_toggle_public(
+        await bulk_toggle_public(
             persona_ids=persona_id_list, user_id=db_user.id, is_public=True
         )
     elif action == "make_private":
-        result = await bulk_toggle_public(
+        await bulk_toggle_public(
             persona_ids=persona_id_list, user_id=db_user.id, is_public=False
         )
     else:
@@ -538,7 +527,6 @@ async def export_page(request: Request):
     if not user_data:
         return RedirectResponse(url="/login")
 
-    from repository.persona_repository import get_user_personas
     from repository.user_repository import get_user_by_telegram_id
 
     db_user = await get_user_by_telegram_id(int(user_data["id"]))
@@ -567,7 +555,6 @@ async def import_persona_web(
     import json
 
     from repository.persona_repository import import_personas
-    from repository.user_repository import get_user_by_telegram_id
 
     db_user = await get_user_by_telegram_id(int(user_data["id"]))
     if not db_user:

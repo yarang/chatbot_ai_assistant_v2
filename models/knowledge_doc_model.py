@@ -2,18 +2,17 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import TIMESTAMP, ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from core.database import Base
 
 if TYPE_CHECKING:
-    from models.chat_room_model import ChatRoom
-    from models.user_model import User
+    pass
 
 
 class KnowledgeDoc(Base):

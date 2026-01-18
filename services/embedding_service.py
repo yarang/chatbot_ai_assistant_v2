@@ -18,7 +18,6 @@ from tenacity import (
     retry_if_exception_type,
 )
 
-from core.config import get_settings
 from models.embedding_result import EmbeddingResult
 from models.text_chunk import TextChunk
 from repository.embedding_repository import EmbeddingRepository

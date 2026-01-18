@@ -87,7 +87,7 @@ async def set_webhook():
 
                 return 0
             else:
-                print(f"❌ Webhook 설정 실패!")
+                print("❌ Webhook 설정 실패!")
                 print(f"   오류: {data.get('description', 'Unknown error')}")
                 return 1
 
@@ -130,7 +130,7 @@ async def delete_webhook():
                 print("   이제 봇은 Webhook이 아닌 Polling 모드로 작동합니다.")
                 return 0
             else:
-                print(f"❌ Webhook 삭제 실패!")
+                print("❌ Webhook 삭제 실패!")
                 print(f"   오류: {data.get('description', 'Unknown error')}")
                 return 1
 

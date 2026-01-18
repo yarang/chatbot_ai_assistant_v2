@@ -10,7 +10,6 @@ Chatbot AI Assistant V2 - Main Application
 
 import logging
 import os
-import sys
 
 from dotenv import load_dotenv
 
@@ -34,7 +33,7 @@ from api.web_router import router as web_router
 from api.web_rag_router import router as web_rag_router
 
 from core.config import get_settings
-from core.database import get_engine, init_db
+from core.database import init_db
 from core.exceptions import install_exception_handlers
 from core.logger import configure_logging
 from core.middleware import add_middlewares
@@ -59,12 +58,12 @@ async def lifespan(app: FastAPI):
 
     # Log Hybrid Router Configuration
     if settings.local_llm.enabled:
-        logger.info(f"🚀 Hybrid Context-Aware Router: ENABLED (Prioritizing Local)")
+        logger.info("🚀 Hybrid Context-Aware Router: ENABLED (Prioritizing Local)")
         logger.info(f"   - Local Endpoint: {settings.local_llm.base_url}")
         logger.info(f"   - Local Model: {settings.local_llm.model}")
         logger.info(f"   - Fallback: {settings.llm_api}")
     else:
-        logger.info(f"🌐 Hybrid Context-Aware Router: DISABLED (Using Cloud Only)")
+        logger.info("🌐 Hybrid Context-Aware Router: DISABLED (Using Cloud Only)")
         logger.info(f"   - Primary Agent: {settings.llm_api}")
 
     # Skip automatic webhook setup to avoid blocking

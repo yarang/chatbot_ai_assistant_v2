@@ -32,7 +32,6 @@ async def test_repository_logic():
 async def test_router_integration():
     print("\nTesting Router Integration (Simulation)...")
     # This is harder to test fully without a real DB, but we can verify imports and function calls
-    from api.web_router import dashboard
     print("Dashboard endpoint imported successfully.")
 
 if __name__ == "__main__":

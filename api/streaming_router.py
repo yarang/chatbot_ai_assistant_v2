@@ -13,11 +13,11 @@ Endpoints:
 
 from typing import AsyncIterator, Optional
 
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, Header
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
-from services.chat_streaming_service import ChatStreamingService, StreamEvent
+from services.chat_streaming_service import ChatStreamingService
 
 router = APIRouter(prefix="/streaming", tags=["Streaming"])
 

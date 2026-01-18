@@ -1,7 +1,7 @@
 import asyncio
 import time
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 
 from fastapi import APIRouter, BackgroundTasks, Request, HTTPException, status
 from langchain_core.messages import AIMessage, HumanMessage
@@ -15,7 +15,6 @@ from repository.chat_room_repository import set_chat_room_persona, upsert_chat_r
 from repository.persona_repository import (
     create_persona,
     get_persona_by_id,
-    get_public_personas,
     get_user_personas,
 )
 from repository.user_repository import upsert_user
@@ -110,18 +109,23 @@ def verify_webhook_secret(request: Request) -> bool:
     Telegram sends the secret token in the X-Telegram-Bot-Api-Secret-Token header.
     This must match the TELEGRAM_WEBHOOK_SECRET environment variable.
 
+    Security: Webhook secret is REQUIRED in production. Set TELEGRAM_WEBHOOK_SECRET
+    in your environment variable before deploying.
+
     Args:
         request: FastAPI Request object
 
     Returns:
-        bool: True if secret is valid or not configured, False otherwise
+        bool: True if secret is valid, False otherwise
     """
     webhook_secret = settings.telegram.webhook_secret
 
-    # If no secret is configured, skip verification (not recommended for production)
+    # Security: Require webhook secret in production
     if not webhook_secret:
-        logger.warning("Webhook secret not configured. Skipping verification.")
-        return True
+        logger.error(
+            "Webhook secret not configured. Set TELEGRAM_WEBHOOK_SECRET environment variable."
+        )
+        return False
 
     # Get the secret token from the request header
     received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
@@ -130,11 +134,11 @@ def verify_webhook_secret(request: Request) -> bool:
         logger.warning("Webhook request missing secret token header")
         return False
 
-    # Compare secrets
-    if received_secret != webhook_secret:
-        logger.warning(
-            f"Invalid webhook secret token received: {received_secret[:10]}..."
-        )
+    # Compare secrets using constant-time comparison to prevent timing attacks
+    import hmac
+
+    if not hmac.compare_digest(received_secret, webhook_secret):
+        logger.warning("Invalid webhook secret token received")
         return False
 
     return True
@@ -704,7 +708,7 @@ async def _process_update_impl(update: Update):
                 else:
                     await bot.send_message(
                         chat_id=chat.id,
-                        text=f"❌ Failed to delete document. Check ID and Permissions.",
+                        text="❌ Failed to delete document. Check ID and Permissions.",
                     )
             except Exception as e:
                 logger.error(f"Error deleting file: {e}")
@@ -989,7 +993,7 @@ async def _process_update_impl(update: Update):
                         )
                         if success:
                             sent_texts[msg.message_id] = final_text
-                logger.debug(f"Final message edit successful")
+                logger.debug("Final message edit successful")
             except Exception as e:
                 logger.error(f"Final edit error: {e}")
 

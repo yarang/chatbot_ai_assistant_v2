@@ -6,18 +6,15 @@ sentence-transformers 임베딩(768차원)과 pgvector를 사용합니다.
 """
 
 import asyncio
-import json
 import logging
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.cache import generate_cache_key, rag_result_cache
 from core.database import get_async_session
-from models.chat_room_model import ChatRoom
-from models.text_chunk import TextChunk
 
 logger = logging.getLogger(__name__)
 

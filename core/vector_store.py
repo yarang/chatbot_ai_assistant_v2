@@ -1,7 +1,6 @@
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_postgres import PGVector
 
-from core.config import get_settings
 from core.database import get_database_url
 
 

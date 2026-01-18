@@ -57,9 +57,9 @@ IMPORTANT: Keep your answers CONCISE and to the point. Even when detailed inform
 Current Time: 2026-01-02 12:22:37
 """
 
-print(f"--- Token Counts (Estimated using cl100k_base) ---")
+print("--- Token Counts (Estimated using cl100k_base) ---")
 print(f"Supervisor System Prompt (Base): {count_tokens(supervisor_system_prompt + members_with_descriptions)} tokens")
 print(f"Researcher System Prompt: {count_tokens(researcher_system_prompt)} tokens")
 print(f"General Assistant System Prompt (w/ placeholder persona): {count_tokens(general_assistant_prompt)} tokens")
-print(f"--------------------------------------------------")
-print(f"NOTE: This does not include conversation history or tool definitions, which add significantly more tokens.")
+print("--------------------------------------------------")
+print("NOTE: This does not include conversation history or tool definitions, which add significantly more tokens.")

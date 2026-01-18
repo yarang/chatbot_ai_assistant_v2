@@ -34,7 +34,7 @@ async def verify_evaluation():
         try:
             await session.commit()
             print(f"Created user: {user_id}")
-        except Exception as e:
+        except Exception:
             await session.rollback()
             # Try to get existing user if unique constraint fails (likely from previous runs)
             # using clean select

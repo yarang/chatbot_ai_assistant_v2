@@ -83,7 +83,6 @@ class MemoryCache:
             if len(self.cache) >= self.max_size:
                 await self._evict_lru()
 
-            actual_ttl = ttl if ttl is not None else self.ttl
             self.cache[key] = (value, time.time())
 
     async def delete(self, key: str) -> bool:

@@ -1,6 +1,6 @@
 import uuid
-from datetime import date, datetime
-from typing import Dict, List, Optional, Tuple, Union
+from datetime import datetime
+from typing import Dict, List, Optional, Union
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession

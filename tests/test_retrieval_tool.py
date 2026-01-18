@@ -59,7 +59,6 @@ class TestRetrievalToolChatRoomIsolation:
         """
         # Arrange
         chat_room_id_a = "room-a"
-        chat_room_id_b = "room-b"
 
         # Simulate vector store returning only room A documents
         # (proper isolation)
@@ -172,7 +171,7 @@ class TestRetrievalToolChatRoomIsolation:
         room_b_id = "public-room-b"
 
         # Room A documents (confidential)
-        confidential_docs = [
+        [
             Document(
                 page_content="Confidential data from Room A",
                 metadata={"source": "secret.pdf", "chat_room_id": room_a_id}

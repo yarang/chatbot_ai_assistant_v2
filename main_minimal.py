@@ -1,6 +1,4 @@
 import logging
-import os
-import sys
 
 from dotenv import load_dotenv
 
@@ -12,7 +10,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from api import router as api_router
-from api.persona_router import router as persona_router
 from api.qa_router import router as qa_router
 from api.telegram_router import router as telegram_router
 from api.web_router import router as web_router
@@ -36,7 +33,7 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    settings = get_settings()
+    get_settings()
     # configure_logging(settings.log_level)  # Skip for now
 
     app = FastAPI(title="Chatbot AI Assistant", lifespan=lifespan, version="2.0.0")

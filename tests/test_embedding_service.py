@@ -6,19 +6,16 @@ Gemini Embeddings API를 사용한 벡터 생성과 pgvector 저장을 테스트
 """
 import time
 from typing import TYPE_CHECKING, List
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_async_session
-from models.embedding_result import EmbeddingResult
-from models.search_result import SearchResult
 from models.text_chunk import TextChunk
-from repository.embedding_repository import EmbeddingRepository
 
 if TYPE_CHECKING:
-    from services.embedding_service import EmbeddingService
+    pass
 
 
 @pytest.fixture

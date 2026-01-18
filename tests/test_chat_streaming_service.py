@@ -10,10 +10,8 @@ Test Coverage:
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi import HTTPException
 
 from services.chat_streaming_service import ChatStreamingService, StreamEvent
 

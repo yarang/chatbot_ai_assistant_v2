@@ -8,7 +8,7 @@ import asyncio
 import io
 from datetime import datetime, timezone
 from typing import AsyncGenerator
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from httpx import AsyncClient, ASGITransport

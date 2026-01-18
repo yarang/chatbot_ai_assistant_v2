@@ -17,7 +17,6 @@ Features:
 - Async iterator support for streaming sources
 """
 
-import asyncio
 import json
 from dataclasses import dataclass, field
 from typing import AsyncIterator, Optional

@@ -41,8 +41,8 @@ async def test_search_engine(engine_name: str, search_tool):
         print("\nExecuting search...")
         result = await search_tool.ainvoke(query)
 
-        print(f"\n✅ Search successful!")
-        print(f"\nResult preview:")
+        print("\n✅ Search successful!")
+        print("\nResult preview:")
         print("-" * 60)
         if isinstance(result, list):
             for i, item in enumerate(result[:2], 1):  # Show first 2 results

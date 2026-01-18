@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from core.security import get_current_user_required
 from repository.chat_room_repository import set_chat_room_persona
@@ -24,20 +24,49 @@ router = APIRouter()
 
 # Request/Response 모델
 class PersonaCreate(BaseModel):
-    name: str
-    content: str
-    description: Optional[str] = None
-    category: Optional[str] = None
-    tags: Optional[List[str]] = None
+    name: str = Field(
+        ..., min_length=1, max_length=100, description="Persona name (1-100 characters)"
+    )
+    content: str = Field(
+        ...,
+        min_length=1,
+        max_length=50000,
+        description="Persona content (1-50000 characters)",
+    )
+    description: Optional[str] = Field(
+        None, max_length=500, description="Optional description (max 500 characters)"
+    )
+    category: Optional[str] = Field(
+        None, max_length=50, description="Optional category (max 50 characters)"
+    )
+    tags: Optional[List[str]] = Field(
+        None, max_length=20, description="Optional list of tags (max 20)"
+    )
     is_public: bool = False
 
 
 class PersonaUpdate(BaseModel):
-    name: Optional[str] = None
-    content: Optional[str] = None
-    description: Optional[str] = None
-    category: Optional[str] = None
-    tags: Optional[List[str]] = None
+    name: Optional[str] = Field(
+        None,
+        min_length=1,
+        max_length=100,
+        description="Persona name (1-100 characters)",
+    )
+    content: Optional[str] = Field(
+        None,
+        min_length=1,
+        max_length=50000,
+        description="Persona content (1-50000 characters)",
+    )
+    description: Optional[str] = Field(
+        None, max_length=500, description="Optional description (max 500 characters)"
+    )
+    category: Optional[str] = Field(
+        None, max_length=50, description="Optional category (max 50 characters)"
+    )
+    tags: Optional[List[str]] = Field(
+        None, max_length=20, description="Optional list of tags (max 20)"
+    )
     is_public: Optional[bool] = None
 
 
@@ -337,7 +366,6 @@ async def set_chat_room_persona_endpoint(
     # Verify chat room ownership
     from core.config import get_settings
     from repository.chat_room_repository import get_chat_room_by_id
-    from repository.conversation_repository import get_history
 
     settings = get_settings()
     user_telegram_id = int(current_user["id"])

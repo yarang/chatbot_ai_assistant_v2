@@ -12,7 +12,6 @@ RAG 기능을 위한 데이터베이스 마이그레이션
 버전: 001
 """
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_async_session
 

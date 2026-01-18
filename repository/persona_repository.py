@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import List, Optional, Union
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_async_session
@@ -84,9 +84,7 @@ class PersonaRepository:
 
         if user_id:
             # 소유자이거나 공개 Persona만 조회 가능
-            stmt = stmt.where(
-                or_(Persona.user_id == user_id, Persona.is_public == True)
-            )
+            stmt = stmt.where(or_(Persona.user_id == user_id, Persona.is_public))
 
         result = await session.execute(stmt)
         return result.scalar_one_or_none()
@@ -116,7 +114,7 @@ class PersonaRepository:
 
         if include_public:
             stmt = select(Persona).where(
-                or_(Persona.user_id == user_id, Persona.is_public == True)
+                or_(Persona.user_id == user_id, Persona.is_public)
             )
         else:
             stmt = select(Persona).where(and_(*conditions))
@@ -236,7 +234,7 @@ class PersonaRepository:
         Returns:
             공개 Persona 리스트
         """
-        stmt = select(Persona).where(Persona.is_public == True).limit(limit)
+        stmt = select(Persona).where(Persona.is_public).limit(limit)
         result = await session.execute(stmt)
         return list(result.scalars().all())
 
@@ -295,14 +293,16 @@ class PersonaRepository:
         copy_name = f"{original.name} (Copy)"
 
         # 중복 확인 후 숫자 추가
-        check_stmt = select(Persona).where(
+        # PERFORMANCE: Use count() instead of fetching all rows
+        # This avoids loading all persona objects into memory just to count them
+        check_stmt = select(func.count(Persona.id)).where(
             and_(
                 Persona.user_id == user_id,
                 Persona.name.like(f"{original.name} (Copy%"),
             )
         )
         check_result = await session.execute(check_stmt)
-        existing_copies = len(list(check_result.scalars().all()))
+        existing_copies = check_result.scalar() or 0
 
         if existing_copies > 0:
             copy_name = f"{original.name} (Copy {existing_copies + 1})"
@@ -330,6 +330,9 @@ class PersonaRepository:
         """
         Persona 일괄 삭제 (소유자만 가능)
 
+        PERFORMANCE OPTIMIZATION: Uses bulk DELETE instead of sequential queries.
+        Reduces N queries to 1 query for significant performance improvement.
+
         Args:
             session: AsyncSession 인스턴스
             persona_ids: 삭제할 Persona ID 목록
@@ -341,24 +344,40 @@ class PersonaRepository:
         if isinstance(user_id, str):
             user_id = uuid.UUID(user_id)
 
-        result = {"success": 0, "failed": 0, "errors": []}
-
+        # Convert all persona_ids to UUID
+        persona_uuids = []
         for persona_id in persona_ids:
             if isinstance(persona_id, str):
-                persona_id = uuid.UUID(persona_id)
+                persona_uuids.append(uuid.UUID(persona_id))
+            else:
+                persona_uuids.append(persona_id)
 
-            try:
-                deleted = await self.delete_persona(session, persona_id, user_id)
-                if deleted:
-                    result["success"] += 1
-                else:
-                    result["failed"] += 1
-                    result["errors"].append(
-                        f"Persona {persona_id} not found or permission denied"
-                    )
-            except Exception as e:
-                result["failed"] += 1
-                result["errors"].append(f"Failed to delete {persona_id}: {str(e)}")
+        result = {"success": 0, "failed": 0, "errors": []}
+
+        try:
+            # PERFORMANCE: Single bulk DELETE query instead of N individual queries
+            # This reduces database round-trips from N to 1
+            stmt = delete(Persona).where(
+                and_(
+                    Persona.id.in_(persona_uuids),
+                    Persona.user_id == user_id,
+                )
+            )
+            delete_result = await session.execute(stmt)
+            deleted_count = delete_result.rowcount
+
+            result["success"] = deleted_count
+
+            # If not all personas were deleted, some were not found or not owned
+            if deleted_count < len(persona_uuids):
+                result["failed"] = len(persona_uuids) - deleted_count
+                result["errors"].append(
+                    f"{result['failed']} personas not found or permission denied"
+                )
+
+        except Exception as e:
+            result["failed"] = len(persona_uuids)
+            result["errors"].append(f"Bulk delete failed: {str(e)}")
 
         return result
 
@@ -372,6 +391,9 @@ class PersonaRepository:
         """
         Persona 일괄 공개/비공개 전환 (소유자만 가능)
 
+        PERFORMANCE OPTIMIZATION: Uses bulk UPDATE instead of sequential queries.
+        Reduces 2N queries (fetch + update) to 1 query for significant performance improvement.
+
         Args:
             session: AsyncSession 인스턴스
             persona_ids: 대상 Persona ID 목록
@@ -384,26 +406,45 @@ class PersonaRepository:
         if isinstance(user_id, str):
             user_id = uuid.UUID(user_id)
 
-        result = {"success": 0, "failed": 0, "errors": []}
-
+        # Convert all persona_ids to UUID
+        persona_uuids = []
         for persona_id in persona_ids:
             if isinstance(persona_id, str):
-                persona_id = uuid.UUID(persona_id)
+                persona_uuids.append(uuid.UUID(persona_id))
+            else:
+                persona_uuids.append(persona_id)
 
-            try:
-                updated = await self.update_persona(
-                    session, persona_id, user_id, is_public=is_public
-                )
-                if updated:
-                    result["success"] += 1
-                else:
-                    result["failed"] += 1
-                    result["errors"].append(
-                        f"Persona {persona_id} not found or permission denied"
+        result = {"success": 0, "failed": 0, "errors": []}
+
+        try:
+            # PERFORMANCE: Single bulk UPDATE query instead of N individual UPDATE queries
+            # This reduces database round-trips from N to 1 and avoids SELECT queries
+            stmt = (
+                update(Persona)
+                .where(
+                    and_(
+                        Persona.id.in_(persona_uuids),
+                        Persona.user_id == user_id,
                     )
-            except Exception as e:
-                result["failed"] += 1
-                result["errors"].append(f"Failed to update {persona_id}: {str(e)}")
+                )
+                .values(is_public=is_public)
+                .returning(Persona.id)
+            )
+            update_result = await session.execute(stmt)
+            updated_ids = update_result.scalars().all()
+
+            result["success"] = len(updated_ids)
+
+            # If not all personas were updated, some were not found or not owned
+            if len(updated_ids) < len(persona_uuids):
+                result["failed"] = len(persona_uuids) - len(updated_ids)
+                result["errors"].append(
+                    f"{result['failed']} personas not found or permission denied"
+                )
+
+        except Exception as e:
+            result["failed"] = len(persona_uuids)
+            result["errors"].append(f"Bulk update failed: {str(e)}")
 
         return result
 

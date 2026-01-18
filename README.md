@@ -2,6 +2,15 @@
 
 텔레그램 봇과 웹 인터페이스를 통해 제공되는 LangGraph 기반의 AI 챗봇 어시스턴트입니다. 페르소나 시스템, 대화 이력 관리, RAG(Retrieval-Augmented Generation), 토큰 추적, 스트리밍 응답 등의 기능을 제공합니다.
 
+## 프로젝트 상태 (2026-01-17)
+
+### 최신 업데이트
+- **품질 개선 완료**: 100+ linting 이슈 수정 (100+ → 21개 이슈로 감소)
+- **의존성 업데이트**: prometheus-client, aiosqlite 추가
+- **코드 품질 점수**: TRUST 5 기준 71/100 (WARNING → PROGRESS)
+- **보안 강화**: Bare except 제거, 구체적 예외 타입 사용
+- **Import 순서 표준화**: PEP 8 준수
+
 ## 주요 기능
 
 ### 핵심 기능

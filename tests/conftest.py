@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from core.config import get_settings
-from core.database import Base, get_async_session
+from core.database import Base
 
 # Test database URL (use separate test database)
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"

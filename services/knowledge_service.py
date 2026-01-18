@@ -6,24 +6,21 @@ sentence-transformers (all-mpnet-base-v2)를 사용하여 로컬에서 768차원
 """
 
 import os
+import pathlib
 from uuid import UUID
 
 import aiofiles
 from fastapi import UploadFile
 from langchain_core.messages import HumanMessage
-from sqlalchemy import delete, select
 
 from core.config import get_settings
 from core.database import get_async_session
 from core.llm import get_llm
 from core.logger import get_logger
-from models.file import File
-from models.knowledge_doc_model import KnowledgeDoc
-from models.text_chunk import TextChunk
 from repository.file_repository import FileCreate, FileRepository
 from services.embedding_service import EmbeddingService
 from services.text_chunking_service import TextChunkingService
-from services.text_extraction_service import ExtractedText, TextExtractionService
+from services.text_extraction_service import ExtractedText
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -42,7 +39,10 @@ async def save_upload_file(file: UploadFile, chat_room_id: str) -> str:
     upload_dir = f"uploads/{chat_room_id}"
     os.makedirs(upload_dir, exist_ok=True)
 
-    file_path = os.path.join(upload_dir, file.filename)
+    # Security: Extract only the filename to prevent path traversal attacks
+    safe_filename = pathlib.Path(file.filename).name
+    file_path = os.path.join(upload_dir, safe_filename)
+
     async with aiofiles.open(file_path, "wb") as out_file:
         content = await file.read()
         await out_file.write(content)
@@ -196,7 +196,7 @@ async def process_uploaded_file(
 
         # 4. Extract text and create chunks
         try:
-            extraction_service = TextExtractionService()
+            # TextExtractionService instantiation removed - using ExtractedText directly
             extracted_text = ExtractedText(
                 content=content,
                 metadata={

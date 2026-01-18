@@ -3,7 +3,7 @@ RAG 검색 API 스키마
 """
 
 import re
-from typing import List, Optional
+from typing import List
 
 from pydantic import BaseModel, Field, field_validator
 

@@ -5,9 +5,8 @@ RAG 기능을 위한 테이블 생성과 pgvector 확장 활성화를 검증합�
 """
 import pytest
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import get_async_session, get_engine
+from core.database import get_async_session
 
 
 @pytest.fixture(scope="session")

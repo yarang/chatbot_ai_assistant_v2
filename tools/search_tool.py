@@ -8,7 +8,6 @@ Supports:
 """
 
 import logging
-from typing import Optional
 
 from langchain_core.tools import Tool
 from langchain_community.tools.ddg_search import DuckDuckGoSearchRun

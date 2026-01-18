@@ -6,7 +6,6 @@ Run this after starting the application to verify token tracking works correctly
 """
 
 import asyncio
-import uuid
 
 from core.graph import graph
 from langchain_core.messages import HumanMessage
@@ -16,9 +15,7 @@ from core.database import get_async_session
 from models.conversation_model import Conversation
 from repository.chat_room_repository import (
     create_chat_room,
-    get_chat_room_by_telegram_id,
 )
-from repository.conversation_repository import get_history
 from repository.user_repository import create_or_update_user
 
 
@@ -76,7 +73,7 @@ async def test_token_tracking():
         
         result = await graph.ainvoke(state)
         
-        print(f"\n✓ Graph executed successfully")
+        print("\n✓ Graph executed successfully")
         print(f"  Input tokens: {result.get('input_tokens_used', 'N/A')}")
         print(f"  Output tokens: {result.get('output_tokens_used', 'N/A')}")
         
@@ -92,7 +89,7 @@ async def test_token_tracking():
         conversation = result_db.scalar_one_or_none()
         
         if conversation:
-            print(f"\n✓ Conversation saved to database:")
+            print("\n✓ Conversation saved to database:")
             print(f"  Model: {conversation.model}")
             print(f"  Input tokens: {conversation.input_tokens}")
             print(f"  Output tokens: {conversation.output_tokens}")
@@ -124,7 +121,7 @@ async def test_token_tracking():
         
         result2 = await graph.ainvoke(state2)
         
-        print(f"\n✓ Graph executed successfully")
+        print("\n✓ Graph executed successfully")
         print(f"  Input tokens: {result2.get('input_tokens_used', 'N/A')}")
         print(f"  Output tokens: {result2.get('output_tokens_used', 'N/A')}")
         
@@ -140,7 +137,7 @@ async def test_token_tracking():
         conversation2 = result_db.scalar_one_or_none()
         
         if conversation2 and conversation2.id != conversation.id:
-            print(f"\n✓ New conversation saved to database:")
+            print("\n✓ New conversation saved to database:")
             print(f"  Model: {conversation2.model}")
             print(f"  Input tokens: {conversation2.input_tokens}")
             print(f"  Output tokens: {conversation2.output_tokens}")

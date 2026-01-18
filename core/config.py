@@ -13,9 +13,7 @@ class DatabaseSettings(BaseSettings):
     name: str = "chatbot_db"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_prefix="DATABASE_",
-        extra="ignore"
+        env_file=".env", env_prefix="DATABASE_", extra="ignore"
     )
 
 
@@ -23,7 +21,9 @@ class TelegramSettings(BaseSettings):
     bot_token: str
     webhook_secret: Optional[str] = None
     bot_username: Optional[str] = None
-    webhook_url: Optional[str] = None  # Full webhook URL (e.g., https://your-domain.com/webhook)
+    webhook_url: Optional[str] = (
+        None  # Full webhook URL (e.g., https://your-domain.com/webhook)
+    )
 
     # Message handling settings
     message_limit: int = 4000  # Telegram message character limit
@@ -31,9 +31,7 @@ class TelegramSettings(BaseSettings):
     max_file_size: int = 10 * 1024 * 1024  # Maximum file upload size (10MB)
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_prefix="TELEGRAM_",
-        extra="ignore"
+        env_file=".env", env_prefix="TELEGRAM_", extra="ignore"
     )
 
 
@@ -42,9 +40,7 @@ class GeminiSettings(BaseSettings):
     model_name: str = "gemini-pro"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_prefix="GEMINI_",
-        extra="ignore"
+        env_file=".env", env_prefix="GEMINI_", extra="ignore"
     )
 
 
@@ -53,9 +49,7 @@ class GroqSettings(BaseSettings):
     model_name: str = "llama3-70b-8192"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_prefix="GROQ_",
-        extra="ignore"
+        env_file=".env", env_prefix="GROQ_", extra="ignore"
     )
 
 
@@ -64,9 +58,7 @@ class ZaiSettings(BaseSettings):
     model_name: str = "glm-4-flash"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_prefix="ZAI_",
-        extra="ignore"
+        env_file=".env", env_prefix="ZAI_", extra="ignore"
     )
 
 
@@ -75,9 +67,7 @@ class NotionSettings(BaseSettings):
     database_id: Optional[str] = None
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_prefix="NOTION_",
-        extra="ignore"
+        env_file=".env", env_prefix="NOTION_", extra="ignore"
     )
 
 
@@ -85,9 +75,7 @@ class AgentSettings(BaseSettings):
     recursion_limit: int = 50  # Maximum recursion depth for LangGraph
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_prefix="AGENT_",
-        extra="ignore"
+        env_file=".env", env_prefix="AGENT_", extra="ignore"
     )
 
 
@@ -98,14 +86,13 @@ class LocalLLMSettings(BaseSettings):
     timeout: float = 10.0  # Timeout in seconds
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_prefix="LOCAL_LLM_",
-        extra="ignore"
+        env_file=".env", env_prefix="LOCAL_LLM_", extra="ignore"
     )
 
 
 class SearchSettings(BaseSettings):
     """Web search engine configuration."""
+
     engine: str = "ddg"  # Options: ddg (DuckDuckGo), tavily, google
     max_results: int = 3  # Maximum number of search results to return
     timeout: float = 10.0  # Search timeout in seconds
@@ -118,9 +105,29 @@ class SearchSettings(BaseSettings):
     google_cse_id: Optional[str] = None
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_prefix="SEARCH_",
-        extra="ignore"
+        env_file=".env", env_prefix="SEARCH_", extra="ignore"
+    )
+
+
+class CacheSettings(BaseSettings):
+    """Redis cache configuration."""
+
+    enabled: bool = True  # Enable/disable caching
+    host: str = "localhost"  # Redis host
+    port: int = 6379  # Redis port
+    db: int = 0  # Redis database number
+    password: Optional[str] = None  # Redis password (if required)
+    default_ttl: int = 1800  # Default TTL in seconds (30 minutes)
+    max_connections: int = 50  # Maximum connection pool size
+
+    # TTL settings for different data types (in seconds)
+    user_ttl: int = 1800  # 30 minutes
+    persona_ttl: int = 3600  # 1 hour
+    public_personas_ttl: int = 300  # 5 minutes
+    chat_room_ttl: int = 900  # 15 minutes
+
+    model_config = SettingsConfigDict(
+        env_file=".env", env_prefix="CACHE_", extra="ignore"
     )
 
 
@@ -130,7 +137,12 @@ class Settings(BaseSettings):
     admin_ids: List[int] = []
 
     tavily_api_key: Optional[str] = None  # Deprecated: Use search.tavily_api_key
-    secret_key: str = "change-me-to-a-secure-random-string"  # Mandatory SECRET_KEY
+    # Security: SECRET_KEY must be set via environment variable
+    # Generate with: python -c "import secrets; print(secrets.token_urlsafe(32))"
+    secret_key: str = Field(
+        default=None,
+        description="SECRET_KEY for session encryption. Must be set in production.",
+    )
 
     # Nested settings
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
@@ -142,11 +154,9 @@ class Settings(BaseSettings):
     agent: AgentSettings = Field(default_factory=AgentSettings)
     local_llm: LocalLLMSettings = Field(default_factory=LocalLLMSettings)
     search: SearchSettings = Field(default_factory=SearchSettings)
+    cache: CacheSettings = Field(default_factory=CacheSettings)
 
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
 @lru_cache

@@ -2,7 +2,7 @@ import asyncio
 import os
 import sys
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 # Add project root to path
 sys.path.append(os.getcwd())
@@ -17,7 +17,7 @@ async def main():
     print("Verifying Concurrency Control...")
     
     # Patch the implementation to sleep
-    with patch("api.telegram_router._process_update_impl", side_effect=mock_impl) as mock_method:
+    with patch("api.telegram_router._process_update_impl", side_effect=mock_impl):
         from api.telegram_router import process_update
         
         # Scenario 1: Same User (Sequential)

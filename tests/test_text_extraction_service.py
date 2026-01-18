@@ -3,7 +3,6 @@ TextExtractionService 단위 테스트
 
 PDF 및 텍스트 파일에서 텍스트 추출 기능을 검증합니다.
 """
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest

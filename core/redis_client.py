@@ -9,6 +9,7 @@ import logging
 from typing import Optional
 
 import redis.asyncio as redis
+from redis.asyncio import Redis
 
 from core.config import get_settings
 
@@ -27,7 +28,7 @@ class RedisClient:
 
     _instance: Optional["RedisClient"] = None
     _lock = asyncio.Lock()
-    _client: Optional.redis.Redis = None
+    _client: Optional[Redis] = None
 
     def __init__(self):
         """초기화 (내부용)"""
@@ -54,34 +55,39 @@ class RedisClient:
         """Redis에 연결"""
         try:
             settings = get_settings()
-            redis_host = getattr(settings, "redis", None)
-            if redis_host is None:
-                # 기본값 사용
-                redis_host = type(
-                    "Redis", (), {"host": "localhost", "port": 6379, "db": 0}
-                )()
+            cache_settings = settings.cache
 
+            # Check if caching is enabled
+            if not cache_settings.enabled:
+                logger.info("캐싱이 비활성화되어 있습니다. 인메모리 캐시를 사용합니다.")
+                self._client = None
+                return
+
+            # Connect to Redis with cache settings
             self._client = redis.Redis(
-                host=redis_host.host,
-                port=redis_host.port,
-                db=redis_host.db,
+                host=cache_settings.host,
+                port=cache_settings.port,
+                db=cache_settings.db,
+                password=cache_settings.password,
                 encoding="utf-8",
                 decode_responses=True,
+                socket_connect_timeout=5,
+                socket_keepalive=True,
             )
             await self._client.ping()
             logger.info(
-                f"Redis 연결 성공: {redis_host.host}:{redis_host.port}/{redis_host.db}"
+                f"Redis 연결 성공: {cache_settings.host}:{cache_settings.port}/{cache_settings.db}"
             )
         except Exception as e:
             logger.warning(f"Redis 연결 실패: {e}. 인메모리 캐시를 사용합니다.")
             self._client = None
 
-    async def get_client(self) -> Optional[redis.Redis]:
+    async def get_client(self) -> Optional[Redis]:
         """
         Redis 클라이언트 반환
 
         Returns:
-            redis.Redis: Redis 클라이언트 또는 None (연결 실패 시)
+            Redis 클라이언트 또는 None (연결 실패 시)
         """
         if self._client is None:
             await self._connect()
@@ -104,12 +110,12 @@ class RedisClient:
 _redis_client: Optional[RedisClient] = None
 
 
-async def get_redis_client() -> Optional[redis.Redis]:
+async def get_redis_client() -> Optional[Redis]:
     """
     Redis 클라이언트 반환 (편의 함수)
 
     Returns:
-        redis.Redis: Redis 클라이언트 또는 None
+        Redis 클라이언트 또는 None
     """
     global _redis_client
     if _redis_client is None:

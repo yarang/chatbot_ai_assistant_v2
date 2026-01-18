@@ -103,7 +103,7 @@ async def check_llm_health() -> bool:
     try:
         llm = get_llm()
         # Simple ping-like request
-        response = await llm.ainvoke("ping")
+        await llm.ainvoke("ping")
         return True
     except Exception as e:
         logger.error(f"LLM API health check failed: {e}")

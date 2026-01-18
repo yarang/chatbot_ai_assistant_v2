@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 try:
     print("telegram_router import 시도...")
     from api.telegram_router import router as telegram_router
+
     print("✅ telegram_router import 성공!")
     print(f"   Router type: {type(telegram_router)}")
     print(f"   Routes in router: {len(telegram_router.routes)}")
@@ -28,15 +29,18 @@ try:
 except Exception as e:
     print(f"❌ telegram_router import 실패: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 
 
 def check_main_import():
     """Print all registered routes."""
-    print("="*80)
+    from main import app
+
+    print("=" * 80)
     print("현재 등록된 모든 경로 (Routes)")
-    print("="*80)
+    print("=" * 80)
 
     routes = []
 
@@ -82,9 +86,9 @@ def check_main_import():
         print()
 
     # Check specifically for webhook
-    print("="*80)
+    print("=" * 80)
     print("Webhook 경로 확인")
-    print("="*80)
+    print("=" * 80)
 
     webhook_routes = [r for r in routes if "webhook" in r["path"].lower()]
 
@@ -96,9 +100,9 @@ def check_main_import():
         print("\n❌ Webhook 경로를 찾을 수 없습니다!")
 
     # Check for telegram routes
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("Telegram 경로 확인")
-    print("="*80)
+    print("=" * 80)
 
     telegram_routes = [r for r in routes if "telegram" in r["path"].lower()]
 
@@ -110,9 +114,9 @@ def check_main_import():
         print("\n❌ Telegram 경로를 찾을 수 없습니다!")
 
     # Check OpenAPI schema
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("OpenAPI Schema 확인")
-    print("="*80)
+    print("=" * 80)
 
     try:
         openapi_schema = app.openapi()
@@ -135,7 +139,7 @@ def check_main_import():
 
 
 if __name__ == "__main__":
-    webhook_found = print_all_routes()
+    webhook_found = check_main_import()
 
     if webhook_found:
         print("\n✅ Webhook 경로가 등록되어 있습니다.")

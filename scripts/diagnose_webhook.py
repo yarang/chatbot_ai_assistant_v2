@@ -113,13 +113,13 @@ async def check_webhook_info(settings):
                 # URL 검증
                 expected_url = settings.telegram.webhook_url
                 if url != expected_url:
-                    print(f"\n⚠️  Webhook URL이 일치하지 않습니다!")
+                    print("\n⚠️  Webhook URL이 일치하지 않습니다!")
                     print(f"   예상: {expected_url}")
                     print(f"   실제: {url}")
                     print("\n   Webhook을 재설정해야 합니다.")
                     return False
                 else:
-                    print(f"✅ Webhook URL이 정확합니다.")
+                    print("✅ Webhook URL이 정확합니다.")
 
                 return True
 

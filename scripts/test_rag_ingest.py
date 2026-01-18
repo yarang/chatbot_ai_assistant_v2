@@ -5,7 +5,6 @@ from uuid import uuid4
 from fastapi import UploadFile
 from reportlab.pdfgen import canvas
 
-from core.database import get_async_session
 from repository.chat_room_repository import upsert_chat_room
 from repository.user_repository import upsert_user
 from services.knowledge_service import process_uploaded_file

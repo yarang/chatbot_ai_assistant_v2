@@ -5,7 +5,6 @@ RAG 청크의 임베딩 저장, 검색, 삭제 기능을 검증합니다.
 pgvector를 사용한 유사도 검색과 채팅방 격리를 테스트합니다.
 """
 import time
-import uuid
 from typing import List
 
 import pytest

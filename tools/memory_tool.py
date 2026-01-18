@@ -1,6 +1,4 @@
-from typing import List
 
-from langchain_core.documents import Document
 from langchain_core.tools import Tool
 
 from core.vector_store import get_vector_store

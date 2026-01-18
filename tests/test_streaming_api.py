@@ -10,9 +10,7 @@ Test Coverage:
 - CORS and security headers
 """
 
-import asyncio
-import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
@@ -20,7 +18,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from api.streaming_router import router as streaming_router
-from services.chat_streaming_service import ChatStreamingService, StreamEvent
+from services.chat_streaming_service import StreamEvent
 
 
 class TestStreamingRouterInitialization:
@@ -60,7 +58,6 @@ class TestStreamRequestModel:
     def test_stream_request_empty_message_fails(self):
         """Test that empty message validation fails."""
         from api.streaming_router import StreamRequest
-        from pydantic import ValidationError
 
         with pytest.raises(ValidationError):
             StreamRequest(message="")
@@ -68,7 +65,6 @@ class TestStreamRequestModel:
     def test_stream_request_too_long_message_fails(self):
         """Test that overly long message validation fails."""
         from api.streaming_router import StreamRequest
-        from pydantic import ValidationError
 
         with pytest.raises(ValidationError):
             StreamRequest(message="a" * 10001)
@@ -76,7 +72,6 @@ class TestStreamRequestModel:
     def test_stream_request_whitespace_only_fails(self):
         """Test that whitespace-only message validation fails."""
         from api.streaming_router import StreamRequest
-        from pydantic import ValidationError
 
         with pytest.raises(ValidationError):
             StreamRequest(message="   \t\n   ")
@@ -132,7 +127,6 @@ class TestSSEStreamingEndpoint:
     @pytest.mark.asyncio
     async def test_stream_endpoint_handles_service_errors(self):
         """Test that stream endpoint handles service errors gracefully."""
-        from api.streaming_router import StreamRequest
 
         app = FastAPI()
         app.include_router(streaming_router)

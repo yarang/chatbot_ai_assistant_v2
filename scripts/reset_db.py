@@ -7,7 +7,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from sqlalchemy import text
 
-import models  # Import models to register them with Base
 from core.database import get_engine, init_db
 
 

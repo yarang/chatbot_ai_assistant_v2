@@ -1,15 +1,12 @@
-import logging
-from typing import List, Optional
+from typing import List
 
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-from sqlalchemy import and_, select, text
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql.expression import func
 
 from core.config import get_settings
-from core.database import get_async_session
 from core.logger import get_logger
 from models.knowledge_doc_model import KnowledgeDoc
 from schemas import SearchFilters

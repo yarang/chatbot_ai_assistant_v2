@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """API 엔드포인트 테스트 스크립트"""
-import sys
 import json
-import time
 import urllib.request
 import urllib.error
 
@@ -13,7 +11,7 @@ def test_endpoint(path):
     url = f"{BASE_URL}{path}"
     try:
         with urllib.request.urlopen(url, timeout=5) as response:
-            data = response.read().decode('utf-8')
+            response.read().decode('utf-8')
             print(f"✅ {path}")
             return True
     except urllib.error.HTTPError as e:
